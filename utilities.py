@@ -26,6 +26,17 @@ def normalize_mesh(mesh, center, scale):
     mesh = mesh.scale(scale)
     return mesh
 
+def normalize_mesh_vtk(mesh,center,scale):
+    for i in range(mesh.GetNumberOfPoints()):
+        point_=mesh.GetPoints().GetPoint(i)
+        pointnewX_=(point_[0]-center[0])*scale
+        pointnewY_=(point_[1]-center[1])*scale
+        pointnewZ_=(point_[2]-center[2])*scale
+        pointNew_=(pointnewX_,pointnewY_,pointnewZ_)
+        mesh.GetPoints().SetPoint(i,pointNew_)
+        mesh.Update()
+    return mesh
+
 # normalize invars
 def normalize_invar(invar, center, scale, dims=2):
     invar["x"] -= center[0]
@@ -38,7 +49,29 @@ def normalize_invar(invar, center, scale, dims=2):
         invar["area"] *= scale**dims
     return invar
 
+def TranslatePolyData(Surface,Array):
+    #Create a Translation Function
+    translation=vtk.vtkTransform()
+    translation.Translate(Array)
+    #Apply the Translation to the Surface    
+    transformed_surface=vtk.vtkTransformPolyDataFilter()
+    transformed_surface.SetInputData(Surface)
+    transformed_surface.SetTransform(translation)
+    transformed_surface.Update()
+    transformed_surface=transform_surface.GetOutput()
+    return transformed_surface
 
+def ScalePolyData(Surface,Array):
+    #Create a Translation Function
+    scaling=vtk.vtkTransform()
+    scaling.Translate(Array)
+    #Apply the Translation to the Surface
+    scaled_surface=vtk.vtkTransformPolyDataFilter()
+    scaled_surface.SetInputData(Surface)
+    scaled_surface.SetTransform(scaling)
+    scaled_surface.Update()
+    scaled_surface=scaled_surface.GetOutput()
+    return scaled_surface
 
 ############ Input/Output ##################
 def ReadVTUFile(FileName):

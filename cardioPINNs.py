@@ -78,17 +78,17 @@ def run(cfg: PhysicsNeMoConfig, NormalizeInput=True) -> None:
     outlet_mesh_vtk   = [ReadSTLFile(outlet_path_) for outlet_path_ in outlet_path]
     noslip_mesh_vtk   = ReadSTLFile(wall_path)
     integral_mesh_vtk = ReadSTLFile(meshcombined_path)
-    interior_mesh     = ReadSTLFile(meshcombined_path)
+    interior_mesh_vtk     = ReadSTLFile(meshcombined_path)
 
     #------------------ Scaling Parameters for the Input Variables ----------------------------------------
     if NormalizeInput is True:
-        BBox=interior_mesh.GetBounds()
+        BBox=interior_mesh_vtk.GetBounds()
         xRange=BBox[1]-BBox[0]
         yRange=BBox[3]-BBox[2]
         zRange=BBox[5]-BBox[4]
         normalizeRatio=np.sqrt(xRange**2+yRange**2+zRange**2)
         scale=1/normalizeRatio
-        MeshCentroid = tuple(GetCentroid(interior_mesh))
+        MeshCentroid = tuple(GetCentroid(interior_mesh_vtk))
         
         #Normalize the inlet/outlet/interior meshes
         inlet_mesh = normalize_mesh(inlet_mesh, MeshCentroid, scale)
@@ -96,10 +96,6 @@ def run(cfg: PhysicsNeMoConfig, NormalizeInput=True) -> None:
         noslip_mesh = normalize_mesh(noslip_mesh, MeshCentroid, scale)
         integral_mesh = normalize_mesh(integral_mesh, MeshCentroid, scale)
         interior_mesh = normalize_mesh(interior_mesh, MeshCentroid, scale)
-
-        #Normalize the inlet/out/interior mesh in vtk format
-         
-
 
     else: scale=1
 
