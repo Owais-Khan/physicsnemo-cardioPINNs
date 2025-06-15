@@ -157,8 +157,8 @@ def CardioPINNsGetVelocityData(velocity_path,VelocityArrayName,DistanceThreshold
     #Create a Dictionary to Assign As Input variables Constrains in PhysicsNemo
     data_invar={}
     data_invar["x"]=np.array([[x[i]] for i in range(len(x))])
-    data_invar["y"]=np.array([[x[i]] for i in range(len(x))])
-    data_invar["z"]=np.array([[x[i]] for i in range(len(x))])
+    data_invar["y"]=np.array([[y[i]] for i in range(len(x))])
+    data_invar["z"]=np.array([[z[i]] for i in range(len(x))])
     data_invar_numpy = {key: value for key, value in data_invar.items() if key in ["x", "y", "z"]}
 
     #Create a Dictionary to Assign As Output variables as Constrains in PhysicsNemo
