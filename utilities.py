@@ -139,7 +139,8 @@ def CardioPINNsGetVelocityData(velocity_path,VelocityArrayName,DistanceThreshold
     #NOTE will need to normalize for future since velocity data is already normalized
 
     #Read the Velocity Data
-    VelocityData=ReadVTUFile(velocity_path)
+    if type(velocity_path) is str: VelocityData=ReadVTUFile(velocity_path)
+    else: VelocityData=velocity_path
 
     #Compute Distance Away from The Wall
     DistanceFromWall=GetDistanceFromWall(VelocityData)
