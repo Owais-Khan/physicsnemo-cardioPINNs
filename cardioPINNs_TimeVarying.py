@@ -216,10 +216,10 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     print ("Creating Network Architecture...")
 
     # time window parameters
-    time_window_size = Period/len(vel_data)
+    time_window_size = Period/len(velocity_data)
     t_symbol = Symbol("t")
     time_range = {t_symbol: (0, time_window_size)}
-    nr_time_windows = len(vel_data)
+    nr_time_windows = len(velocity_data)
 
     #Navier-Stokes Solver
     # make list of nodes to unroll graph on
@@ -259,7 +259,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         nodes=nodes,                                                                                                                                                                                                                          
         invar=velData_invar_0,
         outvar=velData_outvar_0,                                                                                                                                                                                                    
-        batch_size=cfg.batch_size.Data, 
+        batch_size=cfg.batch_size.data, 
         parameterization={t_symbol: 0},                                                                                                                                                                                                       
         )                                                                                                                                                                                                                                         
     ic_domain.add_constraint(ic, name="ic")   
@@ -267,7 +267,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     # Initial Conditions for T=N-1 
     ic = PointwiseInteriorConstraint.from_numpy(                                                                                                                                                                                                         
         nodes=nodes,                                                                                                                                                                                                                          
-        invar=velData_invar_0
+        invar=velData_invar_0,
         outvar={"u_prev_step_diff": 0, "v_prev_step_diff": 0, "w_prev_step_diff": 0},                                                                                                                                                         
         batch_size=cfg.batch_size.Data,                                                                                                                                                                                                   
         parameterization={t_symbol: 0},                                                                                                                                                                                                       
@@ -300,7 +300,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     window_domain.add_constraint(no_slip, name="no_slip")
 
 
-   print ("--- Creating Zero-Pressure Boundary Condition at Inlet...") 
+    print ("--- Creating Zero-Pressure Boundary Condition at Inlet...") 
     #Boundary Conditions for Inlet Pressure
     inlet_pressure = PointwiseBoundaryConstraint(
         nodes=nodes,
@@ -390,10 +390,11 @@ def run(cfg: PhysicsNeMoConfig) -> None:
 
     #---------------------- Add Output Validation Data ----------------------------                                                                                                                                                                                                 # add inference data for time slices                                                                                                                                                                                                                                  
     for i, specific_time in enumerate(np.linspace(0, time_window_size, nr_time_windows)):
-        vtk_obj=VTKFromFile(to_absolute_path(MeshPath,export_map={VelocityArrayName: ["u", "v", "w"], "pressure": ["p"]},)
-                                                                                                                                                                                                                                                                                        grid_inference = PointVTKInferencer(                                                                                                                                                                                                                                                vtk_obj=vtk_obj,
+        vtk_obj=VTKFromFile(to_absolute_path(MeshPath,export_map={VelocityArrayName: ["u", "v", "w"], "pressure": ["p"]},))
+        grid_inference = PointVTKInference(
             nodes=nodes,
-            input_vtk_map={"x": "x", "y": "y", "z": "z"},                                                                                                                                                                                                                                   output_names=["u", "v", "w", "p"],                                                                                                                                                                                                                                              requires_grad=False,                                                                                                                                                                                                                                                            invar={"t": np.full([VolumetricMesh.GetNumberOfPoints(), 1], specific_time)},                                                                                                                                                                                                   batch_size=100000,                                                                                                                                                                                                                                                          )                                                                                                                                                                                                                                                                               ic_domain.add_inferencer(grid_inference, name="time_slice_" + str(i).zfill(4))
+            input_vtk_map={"x": "x", "y": "y", "z": "z"},                                                                                                                                                                                                                                   output_names=["u", "v", "w", "p"],                                                                                                                                                                                                                                              requires_grad=False,                                                                                                                                                                                                                                                            invar={"t": np.full([VolumetricMesh.GetNumberOfPoints(), 1], specific_time)},                                                                                                                                                                                                   batch_size=100000,                                                                                                                                                                                                                                                          )                                                                                                                                                                                                                                                                   
+        ic_domain.add_inferencer(grid_inference, name="time_slice_" + str(i).zfill(4))
         window_domain.add_inferencer(
             grid_inference, name="time_slice_" + str(i).zfill(4)                                                                                                                                                                                                                        )                                                                                                                                                                                                                                                                       
 
