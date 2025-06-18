@@ -36,6 +36,28 @@ def normalize_mesh_vtk(mesh,center,scale):
         mesh.Modified()
     return mesh
 
+def reverse_normalize_mesh_vtk(mesh,center,scale):
+        for i in range(mesh.GetNumberOfPoints()):
+            point_=mesh.GetPoints().GetPoint(i)
+            pointnewX_=(point_[0])/scale+center[0]
+            pointnewY_=(point_[1])/scale+center[1]
+            pointnewZ_=(point_[2])/scale+center[2]
+            pointNew_=(pointnewX_,pointnewY_,pointnewZ_)
+            mesh.GetPoints().SetPoint(i,pointNew_)
+            mesh.Modified()
+        return mesh
+
+def GetBoundingBox(mesh):
+    x=np.zeros(mesh.GetNumberOfPoints())
+    y=np.zeros(mesh.GetNumberOfPoints())
+    z=np.zeros(mesh.GetNumberOfPoints())
+    for i in range(mesh.GetNumberOfPoints()):
+        point_=mesh.GetPoints().GetPoint(i)
+        x[i]=point_[0]
+        y[i]=point_[1]
+        z[i]=point_[2]
+    return (np.min(x),np.max(x),np.min(y),np.max(y),np.min(z),np.max(z))
+    
 
 def ProjectData(InputMesh=None,SourceMesh=None): #Project data from SourceMesh to InputMesh
     ProjectedSurface=vtk.vtkProbeFilter()

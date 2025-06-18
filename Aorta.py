@@ -57,7 +57,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     nu=0.04 #viscosity assuming Mesh is in CGS units.
     cgsFactor=0.1 #multiply mesh/data by this factor to convert to cgs. Keep 1 by default.
     CenterInput=True #Normalize the input to enhance convergence
-    DistanceThresholdPercentile=50 #How far away from wall to sample data
+    DistanceThresholdPercentile=75 #How far away from wall to sample data
 
     #Do not touch. Work in progress
     MeshScale = 1.0 #Scaling factor for the mesh. If None, use Bounding Box*10 
