@@ -140,7 +140,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     #No translation. Only Scale the Velocity Data by cgs.
     VelocityFileName=os.path.splitext(os.path.basename(VelocityFilePath))[0]
     print ("\n"+"-"*30)
-    print ("Reading the Velocity File for Data: %s"%VelocityFileName)
+    print ("Reading the Velocity File for Data: %s.vtu"%VelocityFileName)
     VelocityData=ReadVTUFile(VelocityFilePath)
     VelocityDataScaled=normalize_mesh_vtk(VelocityData,MeshCentroidOld,cgsFactor)
 
@@ -339,14 +339,17 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     # start solver
     slv.solve()
 
-    """#Renormalize the Inference File
+    #Renormalize the Inference File
     print ("\n"+"-"*30)
     print ("ReScaling the Velocity Data: %s.vtu"%VelocityFileName)
     VelocityDataPINNs=ReadVTUFile(os.path.join("inferencers/%s.vtu"%VelocityFileName))
-    VelocityDataPINNs=reverse_normalize_mesh_vtk(VelocityData,MeshCentroidOld,cgsFactor)
-    WriteVTUFile(os.path.join("inferencers/%s.vtu"%VelocityFileName),VelocityDataPINNs)"""
+    VelocityDataPINNs=reverse_normalize_mesh_vtk(VelocityDataPINNs,MeshCentroidOld,cgsFactor)
+    WriteVTUFile(os.path.join("inferencers/%s.vtu"%VelocityFileName),VelocityDataPINNs)
     
-
+    print ("\n"+"-"*30)
+    print ("Storing Error in Data: inferencers/DataLoss.dat")
+    
+    exit(1)
 
     print ("\n\n\n"+"-"*30)
     
