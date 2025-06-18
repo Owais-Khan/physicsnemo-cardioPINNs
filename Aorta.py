@@ -87,11 +87,8 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     meshcombined_path=glob(os.path.join(point_path,"mesh-combined.stl"))[0]
     if len(meshcombined_path)==0: raise Exception("No mesh-combined.stl found. Exiting...")
 
-    #Read the Velocity 
-    #velocity_files=glob(os.path.join(velocity_path,"*.vtu"))
-    #if len(velocity_files)==0: raise Exception("No velocity data found. Exiting...")
-    #else: print ("Number of Velocity Files: %d"%len(velocity_files))
-
+    #Get if the volumetric mesh is present
+    if len(glob(MeshPath))==0: raise Exception("No mesh-complete.mesh.vtu found. Exiting..")
 
     #-------------------- Load the STL Mesh into PhysicsNeMo --------------------------------
     inlet_mesh     = Tessellation.from_stl(inlet_path, airtight=False)
@@ -107,101 +104,63 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     integral_mesh_vtk = ReadSTLFile(inlet_path)
     interior_mesh_vtk = ReadSTLFile(meshcombined_path)
 
-    #-------------------- Load and Normalize Velocity Data -----------------------------------
-    #velocity_data=[ReadVTUFile(velocity_file_) for velocity_file_ in velocity_files]
-    VelocityData=ReadVTUFile(VelocityFilePath)
+    #------------------- Convert to cgs units and center  to zero -----------
+    print ("\n"+"-"*30)
+    print ("Convert the Mesh to CGS units. CGS factor is: %.03f"%cgsFactor)
+    MeshCentroidOld= tuple(GetCentroid(interior_mesh_vtk))  
+    BBoxOld=GetBoundingBox(interior_mesh_vtk)
+
+    #No translation. Only Scale the model by cgs factor (physics-nemo model)
+    inlet_mesh = normalize_mesh(inlet_mesh, MeshCentroidOld, cgsFactor)
+    outlet_mesh = [normalize_mesh(outlet_mesh_, MeshCentroidOld, cgsFactor) for outlet_mesh_ in outlet_mesh]
+    noslip_mesh = normalize_mesh(noslip_mesh, MeshCentroidOld, cgsFactor)
+    integral_mesh = normalize_mesh(integral_mesh, MeshCentroidOld, cgsFactor)
+    interior_mesh = normalize_mesh(interior_mesh, MeshCentroidOld, cgsFactor)
+
+    #No translation. Only Scale the model by cgs factor (vtk model)
+    inlet_mesh_vtk = normalize_mesh_vtk(inlet_mesh_vtk, MeshCentroidOld, cgsFactor)
+    outlet_mesh_vtk = [normalize_mesh_vtk(outlet_mesh_, MeshCentroidOld, cgsFactor) for outlet_mesh_ in outlet_mesh_vtk]
+    noslip_mesh_vtk = normalize_mesh_vtk(noslip_mesh_vtk, MeshCentroidOld, cgsFactor)
+    integral_mesh_vtk = normalize_mesh_vtk(integral_mesh_vtk, MeshCentroidOld, cgsFactor)
+    interior_mesh_vtk = normalize_mesh_vtk(interior_mesh_vtk, MeshCentroidOld, cgsFactor)
+
+    #Get Mesh Centroid and Bounding Box
+    MeshCentroidNew = tuple(GetCentroid(interior_mesh_vtk)) 
+    BBoxNew=GetBoundingBox(interior_mesh_vtk)
+    print ("--- Old Centroid is: (%.05f, %.05f, %.05f)"%(MeshCentroidOld[0],MeshCentroidOld[1],MeshCentroidOld[2]))
+    print ("--- Old X Bounds: (%.05f %.05f). Range=%.05f"%(BBoxOld[0],BBoxOld[1],BBoxOld[1]-BBoxOld[0]))
+    print ("--- Old Y Bounds: (%.05f %.05f). Range=%.05f"%(BBoxOld[2],BBoxOld[3],BBoxOld[3]-BBoxOld[2]))
+    print ("--- Old Z Bounds: (%.05f %.05f). Range=%.05f"%(BBoxOld[4],BBoxOld[5],BBoxOld[5]-BBoxOld[4]))
+    print ("\n")
+    print ("--- New Centroid is: (%.05f, %.05f, %.05f)"%(MeshCentroidNew[0],MeshCentroidNew[1],MeshCentroidNew[2]))
+    print ("--- New X Bounds: (%.05f %.05f). Range=%.05f"%(BBoxNew[0],BBoxNew[1],BBoxNew[1]-BBoxNew[0]))
+    print ("--- New Y Bounds: (%.05f %.05f). Range=%.05f"%(BBoxNew[2],BBoxNew[3],BBoxNew[3]-BBoxNew[2]))
+    print ("--- New Z Bounds: (%.05f %.05f). Range=%.05f"%(BBoxNew[4],BBoxNew[5],BBoxNew[5]-BBoxNew[4])) 
+
+    #No translation. Only Scale the Velocity Data by cgs.
     VelocityFileName=os.path.splitext(os.path.basename(VelocityFilePath))[0]
-   
-    #------------------- Convert to cgs -----------
-    if (cgsFactor is not None):
-        print ("\n"+"-"*30)
-        print ("Convert the Mesh to CGS units. CGS factor is: %.03f"%cgsFactor)
-        MeshCentroidOld= tuple(GetCentroid(interior_mesh_vtk))  
-        
-        #No translation. Only Scale the model by cgs factor (physics-nemo model)
-        inlet_mesh = normalize_mesh(inlet_mesh, (0,0,0), cgsFactor)
-        outlet_mesh = [normalize_mesh(outlet_mesh_, (0,0,0), cgsFactor) for outlet_mesh_ in outlet_mesh]
-        noslip_mesh = normalize_mesh(noslip_mesh, (0,0,0), cgsFactor)
-        integral_mesh = normalize_mesh(integral_mesh, (0,0,0), cgsFactor)
-        interior_mesh = normalize_mesh(interior_mesh, (0,0,0), cgsFactor)
+    print ("\n"+"-"*30)
+    print ("Reading the Velocity File for Data: %s"%VelocityFileName)
+    VelocityData=ReadVTUFile(VelocityFilePath)
+    VelocityDataScaled=normalize_mesh_vtk(VelocityData,MeshCentroidOld,cgsFactor)
 
-        #No translation. Only Scale the model by cgs factor (vtk model)
-        inlet_mesh_vtk = normalize_mesh_vtk(inlet_mesh_vtk, (0,0,0), cgsFactor)
-        outlet_mesh_vtk = [normalize_mesh_vtk(outlet_mesh_, (0,0,0), cgsFactor) for outlet_mesh_ in outlet_mesh_vtk]
-        noslip_mesh_vtk = normalize_mesh_vtk(noslip_mesh_vtk, (0,0,0), cgsFactor)
-        integral_mesh_vtk = normalize_mesh_vtk(integral_mesh_vtk, (0,0,0), cgsFactor)
-        interior_mesh_vtk = normalize_mesh_vtk(interior_mesh_vtk, (0,0,0), cgsFactor)
+    print ("\n"+"-"*30)
+    print ("Reading the Volumetric Mesh for Inference: %s"%os.path.basename(MeshPath))
+    Mesh=ReadVTUFile(MeshPath)
+    MeshScaled=normalize_mesh_vtk(Mesh,MeshCentroidOld,cgsFactor)
+    print ("Saving Scaled Volumetric Mesh in inferencers/MeshScaled.vtu")
+    WriteVTUFile(os.path.join("MeshScaled.vtu"),MeshScaled)
 
-        #Get Mesh Centroid and Bounding Box
-        MeshCentroidNew = tuple(GetCentroid(interior_mesh_vtk)) 
-        BBox=GetBoundingBox(interior_mesh_vtk)
-        print ("--- Old Centroid is: (%.05f, %.05f, %.05f)"%(MeshCentroidOld[0],MeshCentroidOld[1],MeshCentroidOld[2]))
-        print ("--- New Centroid is: (%.05f, %.05f, %.05f)"%(MeshCentroidNew[0],MeshCentroidNew[1],MeshCentroidNew[2]))
-        print ("--- New X Bounds: (%.05f %.05f). Range=%.05f"%(BBox[0],BBox[1],BBox[1]-BBox[0]))
-        print ("--- New Y Bounds: (%.05f %.05f). Range=%.05f"%(BBox[2],BBox[3],BBox[3]-BBox[2]))
-        print ("--- New Z Bounds: (%.05f %.05f). Range=%.05f"%(BBox[4],BBox[5],BBox[5]-BBox[4])) 
+    #-------------------- Load and Normalize Velocity Data -----------------------------------
+    velData_invar, velData_outvar=CardioPINNsGetVelocityData(VelocityDataScaled,VelocityArrayName,DistanceThresholdPercentile)
+    NumberOfVelPoints=len(velData_outvar["u"])
+    VelocityMagnitude=0
+    for i in range(NumberOfVelPoints):
+        VelocityMagnitude+=torch.mean(torch.sqrt(torch.square(torch.tensor(velData_outvar["u"]))  + torch.square(torch.tensor(velData_outvar["v"])) + torch.square(torch.tensor(velData_outvar["w"]))))
+    VelocityMagnitude=VelocityMagnitude/NumberOfVelPoints
+    print ("--- Number of Sampled Points Away from the Wall: %d"%NumberOfVelPoints)
+    print ("--- Velocity Magnitude: %.05f"%VelocityMagnitude)
 
-        #No translation. Only Scale the Velocity Data by cgs.                                                                                                            
-        VelocityDataNormalized=normalize_mesh_vtk(VelocityData,(0,0,0), cgsFactor)
-
-        #Write the Normalized Mesh
-        Mesh=ReadVTUFile(MeshPath)
-        MeshNormalized=normalize_mesh_vtk(Mesh,(0,0,0),cgsFactor)
-        WriteVTUFile("MeshNormalized.vtu",MeshNormalized)
-
-    
-    else:
-        #Store original velocity data 
-        VelocityDataNormalized=VelocityData
-
-        #Store original mesh in output folder
-        Mesh=ReadVTUFile(MeshPath)
-        MeshNormalized=Mesh
-        WriteVTUFile("MeshNormalized.vtu",Mesh)
-            
-    #------------------ Scaling Parameters for the Input Variables ----------------------------------------
-    if (CenterInput is True):
-        print ("\n"+"-"*30)
-        print ("Centering the Input Data to Origin")
-        MeshCentroidOld = tuple(GetCentroid(interior_mesh_vtk))
-        
-        #Normalize the inlet/outlet/interior meshes
-        inlet_mesh = normalize_mesh(inlet_mesh, MeshCentroidOld, MeshScale)
-        outlet_mesh = [normalize_mesh(outlet_mesh_, MeshCentroidOld, MeshScale) for outlet_mesh_ in outlet_mesh]
-        noslip_mesh = normalize_mesh(noslip_mesh, MeshCentroidOld, MeshScale)
-        integral_mesh = normalize_mesh(integral_mesh, MeshCentroidOld, MeshScale)
-        interior_mesh = normalize_mesh(interior_mesh, MeshCentroidOld, MeshScale)
-
-        #Normalize the inlet/outlet/interior meshes
-        inlet_mesh_vtk = normalize_mesh_vtk(inlet_mesh_vtk, MeshCentroidOld, MeshScale)
-        outlet_mesh_vtk = [normalize_mesh_vtk(outlet_mesh_, MeshCentroidOld, MeshScale) for outlet_mesh_ in outlet_mesh_vtk]
-        noslip_mesh_vtk = normalize_mesh_vtk(noslip_mesh_vtk, MeshCentroidOld, MeshScale)
-        integral_mesh_vtk = normalize_mesh_vtk(integral_mesh_vtk, MeshCentroidOld, MeshScale)
-        interior_mesh_vtk = normalize_mesh_vtk(interior_mesh_vtk, MeshCentroidOld, MeshScale)
-
-       #Get Mesh Centroid and Bounding Box
-        MeshCentroidNew = tuple(GetCentroid(interior_mesh_vtk))
-        BBox=GetBoundingBox(interior_mesh_vtk)
-        print ("--- Old Centroid is: (%.05f, %.05f, %.05f)"%(MeshCentroidOld[0],MeshCentroidOld[1],MeshCentroidOld[2]))
-        print ("--- New Centroid is: (%.05f, %.05f, %.05f)"%(MeshCentroidNew[0],MeshCentroidNew[1],MeshCentroidNew[2]))
-        print ("--- New X Bounds: (%.05f %.05f). Range=%.05f"%(BBox[0],BBox[1],BBox[1]-BBox[0]))
-        print ("--- New Y Bounds: (%.05f %.05f). Range=%.05f"%(BBox[2],BBox[3],BBox[3]-BBox[2]))
-        print ("--- New Z Bounds: (%.05f %.05f). Range=%.05f"%(BBox[4],BBox[5],BBox[5]-BBox[4]))
-
-        #Normalize the Velocity Mesh
-        VelocityDataNormalized=normalize_mesh_vtk(VelocityData,MeshCentroidOld, MeshScale)
-
-        #Normalize the Inference Mesh
-        MeshNormalized=normalize_mesh_vtk(MeshNormalized,MeshCentroidOld,MeshScale)
-        WriteVTUFile("MeshNormalized.vtu",MeshNormalized)
-
-
-        print ("\n"+"-"*30)
-        print ("Writing the Scaling/Translation to TransformationParameters.dat")
-        infile=open("TransformationParameters.dat",'w')
-        infile.write("Centroid: %.08f %.08f %.08f\n"%(MeshCentroidOld[0],MeshCentroidOld[1],MeshCentroidOld[2]))
-        infile.write("Scaling: %.08f\n"%cgsFactor)
-        infile.close()
 
     #----------------------------- Geometric Parame:ters -------------------------------
     #Surface Normals
@@ -311,7 +270,6 @@ def run(cfg: PhysicsNeMoConfig) -> None:
 
 
     #Data Loss 
-    velData_invar, velData_outvar=CardioPINNsGetVelocityData(VelocityDataNormalized,VelocityArrayName,DistanceThresholdPercentile)
     data = PointwiseConstraint.from_numpy(
         nodes=nodes,                                                                                                                              
         invar=velData_invar,                                                                                                                   
@@ -322,7 +280,6 @@ def run(cfg: PhysicsNeMoConfig) -> None:
 
 
 #----------------------------------- Add Monitors to Output ------------------------------
-
     # Inlet Pressure, Velocity and Flow Rates
     inlet_mesh_filename=os.path.splitext(os.path.basename(inlet_path))[0]
     inlet_monitor = PointwiseMonitor(
@@ -355,7 +312,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     global_monitor = PointwiseMonitor(                                                                                                                                                                                                        
         interior_mesh.sample_interior(100),                                                                                                                                                                                                   
         output_names=["u", "v", "w", "p"],                                                                                                                                                                
-        metrics={"InteriorVelocity": lambda var: (1./100)* torch.sum(torch.sqrt( torch.square(var["u"]) + torch.square(var["v"]) + torch.square(var["w"])))
+        metrics={"InteriorVelocity": lambda var: torch.mean(torch.sqrt( torch.square(var["u"]) + torch.square(var["v"]) + torch.square(var["w"])))
         },                                                                                                                                                                                                                                    
         nodes=nodes,                                                                                                                                                                                                                          
         requires_grad=True,                                                                                                                                                                                                                   
@@ -364,7 +321,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
 
 
     #---------------------- Add Output Validation Data ----------------------------
-    vtk_obj = VTKFromFile("MeshNormalized.vtu",export_map={VelocityArrayName: ["u", "v", "w"], "pressure": ["p"]},)
+    vtk_obj = VTKFromFile(os.path.join("MeshScaled.vtu"),export_map={VelocityArrayName: ["u", "v", "w"], "pressure": ["p"]},)
     grid_inference = PointVTKInferencer(
         vtk_obj=vtk_obj,
         nodes=nodes,
@@ -382,7 +339,18 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     # start solver
     slv.solve()
 
-    #Delete the solver
+    """#Renormalize the Inference File
+    print ("\n"+"-"*30)
+    print ("ReScaling the Velocity Data: %s.vtu"%VelocityFileName)
+    VelocityDataPINNs=ReadVTUFile(os.path.join("inferencers/%s.vtu"%VelocityFileName))
+    VelocityDataPINNs=reverse_normalize_mesh_vtk(VelocityData,MeshCentroidOld,cgsFactor)
+    WriteVTUFile(os.path.join("inferencers/%s.vtu"%VelocityFileName),VelocityDataPINNs)"""
+    
+
+
+    print ("\n\n\n"+"-"*30)
+    
+    #Delete the solver for next timestep
     del flow_net, nodes, domain, interior, no_slip, inlet_pressure, data, inlet_monitor, outlet_monitor_, global_monitor, grid_inference, slv 
 
 if __name__ == "__main__":
