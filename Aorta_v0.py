@@ -58,7 +58,6 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     cgsFactor=0.1 #multiply mesh/data by this factor to convert to cgs. Keep 1 by default.
     CenterInput=True #Normalize the input to enhance convergence
     DistanceThresholdPercentile=75 #How far away from wall to sample data
-    InflowRate=241 #ml/s
 
     #Do not touch. Work in progress
     MeshScale = 1.0 #Scaling factor for the mesh. If None, use Bounding Box*10 
@@ -118,7 +117,6 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     integral_mesh = normalize_mesh(integral_mesh, MeshCentroidOld, cgsFactor)
     interior_mesh = normalize_mesh(interior_mesh, MeshCentroidOld, cgsFactor)
 
-
     #No translation. Only Scale the model by cgs factor (vtk model)
     inlet_mesh_vtk = normalize_mesh_vtk(inlet_mesh_vtk, MeshCentroidOld, cgsFactor)
     outlet_mesh_vtk = [normalize_mesh_vtk(outlet_mesh_, MeshCentroidOld, cgsFactor) for outlet_mesh_ in outlet_mesh_vtk]
@@ -146,14 +144,23 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     VelocityData=ReadVTUFile(VelocityFilePath)
     VelocityDataScaled=normalize_mesh_vtk(VelocityData,MeshCentroidOld,cgsFactor)
 
+    print ("\n"+"-"*30)
+    print ("Reading the Volumetric Mesh for Inference: %s"%os.path.basename(MeshPath))
+    Mesh=ReadVTUFile(MeshPath)
+    MeshScaled=normalize_mesh_vtk(Mesh,MeshCentroidOld,cgsFactor)
+    print ("Saving Scaled Volumetric Mesh in inferencers/MeshScaled.vtu")
+    WriteVTUFile(os.path.join("MeshScaled.vtu"),MeshScaled)
+
     #-------------------- Load and Normalize Velocity Data -----------------------------------
     velData_invar, velData_outvar=CardioPINNsGetVelocityData(VelocityDataScaled,VelocityArrayName,DistanceThresholdPercentile)
     NumberOfVelPoints=len(velData_outvar["u"])
     VelocityMagnitude=0
-    #for i in range(NumberOfVelPoints):
-    VelocityMagnitude=torch.mean(torch.sqrt(torch.square(torch.tensor(velData_outvar["u"]))  + torch.square(torch.tensor(velData_outvar["v"])) + torch.square(torch.tensor(velData_outvar["w"]))))
+    for i in range(NumberOfVelPoints):
+        VelocityMagnitude+=torch.mean(torch.sqrt(torch.square(torch.tensor(velData_outvar["u"]))  + torch.square(torch.tensor(velData_outvar["v"])) + torch.square(torch.tensor(velData_outvar["w"]))))
+    VelocityMagnitude=VelocityMagnitude/NumberOfVelPoints
     print ("--- Number of Sampled Points Away from the Wall: %d"%NumberOfVelPoints)
     print ("--- Velocity Magnitude: %.05f"%VelocityMagnitude)
+
 
     #----------------------------- Geometric Parame:ters -------------------------------
     #Surface Normals
@@ -208,7 +215,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     ns = NavierStokes(nu=nu*cgsFactor, rho=1.0, dim=3, time=False)
 
     #Normal Dot Vector
-    normal_dot_vel = NormalDotVec(["u", "v", "w"])
+    #normal_dot_vel = NormalDotVec(["u", "v", "w"])
 
     #Flow Net
     print ("--- Flow Net Architecture...")
@@ -220,7 +227,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
 
     print ("--- Putting all the nodes together...")
     nodes = (ns.make_nodes()
-        + normal_dot_vel.make_nodes()
+       # + normal_dot_vel.make_nodes()
         + [flow_net.make_node(name="flow_network")]
     )
 
@@ -228,53 +235,13 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     print ("\n"+"-"*30)
     print ("Creating Initial, Boudnary and Data Constraints")
 
-    print ("---- Creating Inlet Dirichlet Boundary Condition...")
-    u, v, w = circular_parabola(
-        Symbol("x"),
-        Symbol("y"),
-        Symbol("z"),
-        center=inlet_centroid,
-        normal=inlet_normal_vector,
-        radius=inlet_radius,
-        max_vel=2*(InflowRate/inlet_area),)
-    inlet = PointwiseBoundaryConstraint(
-        nodes=nodes,
-        geometry=inlet_mesh,
-        outvar={"u": u, "v": v, "w": w},
-        batch_size=cfg.batch_size.inlet,
-    )
-    domain.add_constraint(inlet, "inlet")
-
-
-    print ("\n--- Creating Integral Boundary Condition at Inlet...")
-    # Integral Continuity 1                                                                                                                                                                             
-    print ("------ Assigned Flow Rate at Inlet: %.05f"%InflowRate)
-    integral_continuity = IntegralBoundaryConstraint(                                                                                                                                                                       nodes=nodes,                                                                                                                                                                                                        geometry=inlet_mesh,                  
-        outvar={"normal_dot_vel": InflowRate},
-        batch_size=1,                                                                                                                                                                                                       integral_batch_size=cfg.batch_size.integral_continuity,                                                                                                                                                             #lambda_weighting={"normal_dot_vel": 0.1},
-        )                      
-    domain.add_constraint(integral_continuity, "Integral_Inlet") 
-                                                                                                                                                                                                                                              
-    # Integral Continuity 2                                                                                                                                                                                      
-    print ("\n--- Creating Integral Boundary Condition at Outlets Using Area Ratios...")
-    for i in range(len(outlet_mesh)):
-        flow_rate_=-1*(outlet_area[i]/np.sum(outlet_area))*InflowRate
-        print ("------ Assigned Flow Rate at %s: %.05f"%(os.path.splitext(os.path.basename(outlet_path[i]))[0],flow_rate_))
-        integral_continuity = IntegralBoundaryConstraint( 
-            nodes=nodes,                                                                                                                                                                                        
-            geometry=integral_mesh,                                                                                                                                                                         
-            outvar={"normal_dot_vel": flow_rate_},              
-            batch_size=1,
-            integral_batch_size=cfg.batch_size.integral_continuity, 
-            #lambda_weighting={"normal_dot_vel": 0.1},
-        )                                                                                                                                                          
-        domain.add_constraint(integral_continuity, "Integral_%s"%os.path.splitext(os.path.basename(outlet_path[i]))[0])    
-
 
     print ("--- Creating Interior Boundary Conditions (Continuity, Momentum)...")
-    # Boundary Conditions for Interior                                                                                                                                                                           
-    interior = PointwiseInteriorConstraint(                                                                                                                                                                                 nodes=nodes,                                                                                                                                                                                                        geometry=interior_mesh,       
-        outvar={"continuity": 0, "momentum_x": 0, "momentum_y": 0, "momentum_z": 0},    
+    # Boundary Conditions for Interior                                                                                                                                                                                                       
+    interior = PointwiseInteriorConstraint(                                                                                                                                                                                                   
+        nodes=nodes,                                                                                                                                                                                                                          
+        geometry=interior_mesh,                                                                                                                                                                                                          
+        outvar={"continuity": 0, "momentum_x": 0, "momentum_y": 0, "momentum_z": 0},                                                                                                                                                          
         batch_size=cfg.batch_size.interior,
         )            
     domain.add_constraint(interior, name="Interior_"+VelocityFileName)
@@ -309,7 +276,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         outvar=velData_outvar,                                                                                                                 
         batch_size=cfg.batch_size.data,                                                                                                           
         )                                                                                                                                             
-    #domain.add_constraint(data, "DataConstraints_"+VelocityFileName) 
+    domain.add_constraint(data, "DataConstraints_"+VelocityFileName) 
 
 
 #----------------------------------- Add Monitors to Output ------------------------------
@@ -341,20 +308,20 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         domain.add_monitor(outlet_monitor_)
 
 
-    # monitors for the interior domain 
-    global_monitor = PointwiseMonitor(                                                                                                                                                                                      interior_mesh.sample_interior(100),                                                                                                                                                                                 output_names=["u", "v", "w", "p"],
+    # monitors for the interior domain                                                                                                                                                                                                        
+    global_monitor = PointwiseMonitor(                                                                                                                                                                                                        
+        interior_mesh.sample_interior(100),                                                                                                                                                                                                   
+        output_names=["u", "v", "w", "p"],                                                                                                                                                                
         metrics={"InteriorVelocity": lambda var: torch.mean(torch.sqrt( torch.square(var["u"]) + torch.square(var["v"]) + torch.square(var["w"])))
-        },                                                                                                                                                                                                                  nodes=nodes,     
+        },                                                                                                                                                                                                                                    
+        nodes=nodes,                                                                                                                                                                                                                          
         requires_grad=True,                                                                                                                                                                                                                   
     )                                                                                                                                                                                                                                         
     domain.add_monitor(global_monitor)      
 
 
     #---------------------- Add Output Validation Data ----------------------------
-    vtk_obj = VTKFromFile(os.path.join(VelocityFilePath),export_map={VelocityArrayName+"_PINNs": ["u", "v", "w"], "pressure_PINNs": ["p"]},)
-    points = vtk_obj.get_points()
-    for i in range(3): points[:, i] =(points[:,i] - MeshCentroidOld[i])*cgsFactor  # Scale the data
-    vtk_obj.set_points(points)
+    vtk_obj = VTKFromFile(os.path.join("MeshScaled.vtu"),export_map={VelocityArrayName+"_PINNs": ["u", "v", "w"], "pressure_PINNs": ["p"]},)
     grid_inference = PointVTKInferencer(
         vtk_obj=vtk_obj,
         nodes=nodes,
@@ -372,35 +339,39 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     # start solver
     slv.solve()
 
-    #---------------------------- Rescale the Inferenced Mesh -------------------------------------
     #Renormalize the Inference File
     print ("\n"+"-"*30)
     print ("ReScaling the Velocity Data: %s.vtu"%VelocityFileName)
     VelocityDataPINNs=ReadVTUFile(os.path.join("inferencers/%s.vtu"%VelocityFileName))
-    VelocityDataPINNsRescaled=reverse_normalize_mesh_vtk(VelocityDataPINNs,MeshCentroidOld,cgsFactor)
-    WriteVTUFile(os.path.join("inferencers/%s_Rescaled.vtu"%VelocityFileName),VelocityDataPINNsRescaled)
-
-
-    #--------------------------- Compute Data Loss ------------------------------------------------
-    print ("\n"+"-"*30)
-    print ("Storing Data Error in: inferencers/DataLoss.dat")
-    DataLossFile=open(os.path.join("inferencers/DataLoss.dat"),'a')
-    velData_invar_PINNs, velData_outvar_PINNs=CardioPINNsGetVelocityData(VelocityDataPINNs,VelocityArrayName+"_PINNs",DistanceThresholdPercentile) #Extract the Same Points as used in DataLoss
+    VelocityDataPINNs=reverse_normalize_mesh_vtk(VelocityDataPINNs,MeshCentroidOld,cgsFactor)
+    WriteVTUFile(os.path.join("inferencers/%s.vtu"%VelocityFileName),VelocityDataPINNs)
     
-    #Compute Error 
-    VelocityMagnitudeSum=torch.sum(torch.square(torch.tensor(velData_outvar["u"]))  + torch.square(torch.tensor(velData_outvar["v"])) + torch.square(torch.tensor(velData_outvar["w"])))
-    VelocityErrorSum=torch.square(torch.tensor(velData_outvar["u"])-torch.tensor(velData_outvar_PINNs["u"]))
-    VelocityErrorSum+=torch.square(torch.tensor(velData_outvar["v"])-torch.tensor(velData_outvar_PINNs["v"]))
-    VelocityErrorSum+=torch.square(torch.tensor(velData_outvar["w"])-torch.tensor(velData_outvar_PINNs["w"]))
-    VelocityErrorSum=torch.sum(VelocityErrorSum)
+                                                                                                                                                                                                                                              
+    #--------------------------- Compute Data Loss ------------------------------------------------                                                                                                                                           
+    print ("\n"+"-"*30)                                                                                                                                                                                                                       
+    print ("Storing Data Error in: inferencers/DataLoss.dat")                                                                                                                                                                                 
+    DataLossFile=open(os.path.join("inferencers/DataLoss.dat"),'a')                                                                                                                                                                           
+    velData_invar_PINNs, velData_outvar_PINNs=CardioPINNsGetVelocityData(VelocityDataPINNs,VelocityArrayName+"_PINNs",DistanceThresholdPercentile) #Extract the Same Points as used in DataLoss                                               
+                                                                                                                                                                                                                                              
+    #Compute Error                                                                                                                                                                                                                            
+    VelocityMagnitudeSum=torch.sum(torch.square(torch.tensor(velData_outvar["u"]))  + torch.square(torch.tensor(velData_outvar["v"])) + torch.square(torch.tensor(velData_outvar["w"])))                                                      
+    VelocityErrorSum=torch.square(torch.tensor(velData_outvar["u"])-torch.tensor(velData_outvar_PINNs["u"]))                                                                                                                                  
+    VelocityErrorSum+=torch.square(torch.tensor(velData_outvar["v"])-torch.tensor(velData_outvar_PINNs["v"]))                                                                                                                                 
+    VelocityErrorSum+=torch.square(torch.tensor(velData_outvar["w"])-torch.tensor(velData_outvar_PINNs["w"]))                                                                                                                                 
+    VelocityErrorSum=torch.sum(VelocityErrorSum)                                                                                                                                                                                              
+                                                                                                                                                                                                                                              
+    VelocityError=(VelocityErrorSum/VelocityMagnitudeSum)**0.5                                                                                                                                                                                
+    DataLossFile.write("%s %.05f\n"%(VelocityFileName,VelocityError))                                                                                                                                                                         
+    DataLossFile.close()         
+    print ("\n\n\n"+"-"*30)                                                                                                                                                                                                              
+                                    
 
-    VelocityError=(VelocityErrorSum/VelocityMagnitudeSum)**0.5
-    DataLossFile.write("%s %.05f\n"%(VelocityFileName,VelocityError))
-    DataLossFile.close()
+
+
     print ("\n\n\n"+"-"*30)
     
     #Delete the solver for next timestep
-    del flow_net, nodes, domain, interior, vtk_obj, no_slip, inlet_pressure, data, inlet_monitor, outlet_monitor_, global_monitor, grid_inference, slv 
+    del flow_net, nodes, domain, interior, no_slip, inlet_pressure, data, inlet_monitor, outlet_monitor_, global_monitor, grid_inference, slv 
 
 if __name__ == "__main__":
 
@@ -414,7 +385,5 @@ if __name__ == "__main__":
     #Loop over all of the files
     for i in range(0,len(velocity_files)):
         #Run Simulation
-        VelocityFilePath=velocity_files[4]
+        VelocityFilePath=velocity_files[i]
         run()
-        exit(1)
-
