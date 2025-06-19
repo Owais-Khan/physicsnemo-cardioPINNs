@@ -21,6 +21,7 @@ import torch
 import numpy as np
 from sympy import Symbol, sqrt, Max
 import subprocess
+import gc
 
 import physicsnemo.sym
 from physicsnemo.sym.hydra import to_absolute_path, instantiate_arch, PhysicsNeMoConfig
@@ -50,11 +51,12 @@ from physicsnemo.sym.domain.inferencer import PointVTKInferencer
 from physicsnemo.sym.models.moving_time_window import MovingTimeWindowArch
 
 
-@physicsnemo.sym.main(config_path="conf", config_name="config_TimeVarying")
+@physicsnemo.sym.main(config_path="conf", config_name="config")
 def run(cfg: PhysicsNeMoConfig) -> None:
 
     #------------------ Input Variables ------------------------------------------------
     nu=0.04 #viscosity assuming Mesh is in CGS units.
+    rho=1.06 # density in CGS units.
     cgsFactor=0.1 #multiply mesh/data by this factor to convert to cgs. Keep 1 by default.
     CenterInput=True #Normalize the input to enhance convergence
     DistanceThresholdPercentile=75 #How far away from wall to sample data
@@ -205,7 +207,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     #Navier-Stokes Solver
     # make list of nodes to unroll graph on
     print ("--- Creating Navier-Stokes Node...")
-    ns = NavierStokes(nu=nu*cgsFactor, rho=1.0, dim=3, time=False)
+    ns = NavierStokes(nu=nu, rho=1.06, dim=3, time=False)
 
     #Normal Dot Vector
     normal_dot_vel = NormalDotVec(["u", "v", "w"])
@@ -228,7 +230,10 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     print ("\n"+"-"*30)
     print ("Creating Initial, Boudnary and Data Constraints")
 
-    print ("---- Creating Inlet Dirichlet Boundary Condition...")
+    print ("--- Creating Inlet Dirichlet Boundary Condition...")
+    PeakInletVel=(2*(InflowRate/inlet_area))
+    print ("------ Max Inlet Velocity is: %.05f"%PeakInletVel)
+    print ("------ Inlet Reynolds # is: %.05f"%((rho*(PeakInletVel*0.5)*(2*inlet_radius))/nu))
     u, v, w = circular_parabola(
         Symbol("x"),
         Symbol("y"),
@@ -246,14 +251,18 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     domain.add_constraint(inlet, "inlet")
 
 
-    print ("\n--- Creating Integral Boundary Condition at Inlet...")
+    #print ("\n--- Creating Integral Boundary Condition at Inlet...")
     # Integral Continuity 1                                                                                                                                                                             
-    print ("------ Assigned Flow Rate at Inlet: %.05f"%InflowRate)
-    integral_continuity = IntegralBoundaryConstraint(                                                                                                                                                                       nodes=nodes,                                                                                                                                                                                                        geometry=inlet_mesh,                  
+    #print ("------ Assigned Flow Rate at Inlet: %.05f"%InflowRate)
+    integral_continuity = IntegralBoundaryConstraint(                                                                                                                                                                       
+        nodes=nodes,
+        geometry=inlet_mesh,                  
         outvar={"normal_dot_vel": InflowRate},
-        batch_size=1,                                                                                                                                                                                                       integral_batch_size=cfg.batch_size.integral_continuity,                                                                                                                                                             #lambda_weighting={"normal_dot_vel": 0.1},
+        batch_size=1,                                                                                                                                                                                            
+        integral_batch_size=cfg.batch_size.integral_continuity,                                    
+        #lambda_weighting={"normal_dot_vel": 0.1},
         )                      
-    domain.add_constraint(integral_continuity, "Integral_Inlet") 
+    #domain.add_constraint(integral_continuity, "Integral_Inlet") 
                                                                                                                                                                                                                                               
     # Integral Continuity 2                                                                                                                                                                                      
     print ("\n--- Creating Integral Boundary Condition at Outlets Using Area Ratios...")
@@ -262,7 +271,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         print ("------ Assigned Flow Rate at %s: %.05f"%(os.path.splitext(os.path.basename(outlet_path[i]))[0],flow_rate_))
         integral_continuity = IntegralBoundaryConstraint( 
             nodes=nodes,                                                                                                                                                                                        
-            geometry=integral_mesh,                                                                                                                                                                         
+            geometry=outlet_mesh[i],                                                                                                                                                                         
             outvar={"normal_dot_vel": flow_rate_},              
             batch_size=1,
             integral_batch_size=cfg.batch_size.integral_continuity, 
@@ -400,7 +409,13 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     print ("\n\n\n"+"-"*30)
     
     #Delete the solver for next timestep
-    del flow_net, nodes, domain, interior, vtk_obj, no_slip, inlet_pressure, data, inlet_monitor, outlet_monitor_, global_monitor, grid_inference, slv 
+    del flow_net, nodes, domain, interior, vtk_obj, no_slip, inlet_pressure, data, integral_continuity, inlet_monitor, outlet_monitor_, global_monitor, grid_inference, slv 
+
+    #Collect garbage
+    gc.collect()
+
+    #collect pytorch's cuda chache
+    torch.cuda.empty_cache()
 
 if __name__ == "__main__":
 
@@ -412,9 +427,7 @@ if __name__ == "__main__":
     else: print ("Number of Velocity Files: %d"%len(velocity_files))
 
     #Loop over all of the files
-    for i in range(0,len(velocity_files)):
-        #Run Simulation
-        VelocityFilePath=velocity_files[4]
-        run()
-        exit(1)
-
+    #for i in range(0,len(velocity_files)):
+    #Run Simulation
+    VelocityFilePath=velocity_files[4]
+    run()
