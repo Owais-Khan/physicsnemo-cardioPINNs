@@ -176,7 +176,6 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         outlet_centroid.append(centroid_)
         outlet_normal_vectors.append(outlet_normal_vector_)
 
-
     #Get Surface Areas
     inlet_area=ComputeArea(inlet_mesh_vtk)
     outlet_area=[ComputeArea(outlet_mesh_vtk_) for outlet_mesh_vtk_ in outlet_mesh_vtk]
@@ -226,7 +225,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         + [flow_net.make_node(name="flow_network")]
     )
 
-#---------------------------- Initial Conditions -----------------------------#
+#---------------------------- Constraints -----------------------------#
     print ("\n"+"-"*30)
     print ("Creating Initial, Boudnary and Data Constraints")
 
@@ -242,6 +241,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         normal=inlet_normal_vector,
         radius=inlet_radius,
         max_vel=2*(InflowRate/inlet_area),)
+    
     inlet = PointwiseBoundaryConstraint(
         nodes=nodes,
         geometry=inlet_mesh,
@@ -251,38 +251,40 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     domain.add_constraint(inlet, "inlet")
 
 
-    #print ("\n--- Creating Integral Boundary Condition at Inlet...")
+    print ("\n--- Creating Integral Boundary Condition at Inlet...")
     # Integral Continuity 1                                                                                                                                                                             
-    #print ("------ Assigned Flow Rate at Inlet: %.05f"%InflowRate)
-    integral_continuity = IntegralBoundaryConstraint(                                                                                                                                                                       
+    print ("------ Assigned Flow Rate at Inlet: %.05f"%InflowRate)
+    integral_continuity = IntegralBoundaryConstraint( 
         nodes=nodes,
         geometry=inlet_mesh,                  
-        outvar={"normal_dot_vel": InflowRate},
-        batch_size=1,                                                                                                                                                                                            
+        outvar={"normal_dot_vel": -1*InflowRate},
+        batch_size=1,
         integral_batch_size=cfg.batch_size.integral_continuity,                                    
-        #lambda_weighting={"normal_dot_vel": 0.1},
+        lambda_weighting={"normal_dot_vel": 0.1},
         )                      
-    #domain.add_constraint(integral_continuity, "Integral_Inlet") 
+    domain.add_constraint(integral_continuity, "Integral_Inlet") 
                                                                                                                                                                                                                                               
     # Integral Continuity 2                                                                                                                                                                                      
     print ("\n--- Creating Integral Boundary Condition at Outlets Using Area Ratios...")
     for i in range(len(outlet_mesh)):
-        flow_rate_=-1*(outlet_area[i]/np.sum(outlet_area))*InflowRate
+        flow_rate_=(outlet_area[i]/np.sum(outlet_area))*InflowRate
         print ("------ Assigned Flow Rate at %s: %.05f"%(os.path.splitext(os.path.basename(outlet_path[i]))[0],flow_rate_))
         integral_continuity = IntegralBoundaryConstraint( 
-            nodes=nodes,                                                                                                                                                                                        
-            geometry=outlet_mesh[i],                                                                                                                                                                         
+            nodes=nodes,                                                                                                                           
+            geometry=outlet_mesh[i],                                                                                                               
             outvar={"normal_dot_vel": flow_rate_},              
             batch_size=1,
             integral_batch_size=cfg.batch_size.integral_continuity, 
-            #lambda_weighting={"normal_dot_vel": 0.1},
+            lambda_weighting={"normal_dot_vel": 0.1},
         )                                                                                                                                                          
         domain.add_constraint(integral_continuity, "Integral_%s"%os.path.splitext(os.path.basename(outlet_path[i]))[0])    
 
 
     print ("--- Creating Interior Boundary Conditions (Continuity, Momentum)...")
     # Boundary Conditions for Interior                                                                                                                                                                           
-    interior = PointwiseInteriorConstraint(                                                                                                                                                                                 nodes=nodes,                                                                                                                                                                                                        geometry=interior_mesh,       
+    interior = PointwiseInteriorConstraint(                                                                                         
+        nodes=nodes,                                                                                                                
+        geometry=interior_mesh,       
         outvar={"continuity": 0, "momentum_x": 0, "momentum_y": 0, "momentum_z": 0},    
         batch_size=cfg.batch_size.interior,
         )            
@@ -313,10 +315,10 @@ def run(cfg: PhysicsNeMoConfig) -> None:
 
     #Data Loss 
     data = PointwiseConstraint.from_numpy(
-        nodes=nodes,                                                                                                                              
-        invar=velData_invar,                                                                                                                   
-        outvar=velData_outvar,                                                                                                                 
-        batch_size=cfg.batch_size.data,                                                                                                           
+        nodes=nodes,                                     
+        invar=velData_invar,                                                                                                         
+        outvar=velData_outvar,                                                                                                         
+        batch_size=cfg.batch_size.data,                                                                                              
         )                                                                                                                                             
     #domain.add_constraint(data, "DataConstraints_"+VelocityFileName) 
 
@@ -329,7 +331,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         output_names=["u","v","w","p"],
         metrics={
             inlet_mesh_filename+"_pressure_%s"%VelocityFileName: lambda var: torch.mean(var["p"]),
-            inlet_mesh_filename+"_flowrate_%s"%VelocityFileName: lambda var: inlet_area*torch.sum(torch.sqrt(torch.square(var["u"]) + torch.square(var["v"]) + torch.square(var["w"])))
+            inlet_mesh_filename+"_flowrate_%s"%VelocityFileName: lambda var: inlet_area*torch.mean(torch.sqrt(torch.square(var["u"]) + torch.square(var["v"]) + torch.square(var["w"])))
             },
         nodes=nodes,
     )
@@ -343,7 +345,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
                 output_names=["u","v","w","p"],
                 metrics={
                     mesh_filename_+"_pressure_%s"%VelocityFileName: lambda var: torch.mean(var["p"]),
-                    mesh_filename_+"_flowrate_%s"%VelocityFileName: lambda var: outlet_area[i]*torch.sum(torch.sqrt( torch.square(var["u"]) + torch.square(var["v"]) + torch.square(var["w"])))
+                    mesh_filename_+"_flowrate_%s"%VelocityFileName: lambda var: outlet_area[i]*torch.mean(torch.sqrt( torch.square(var["u"]) + torch.square(var["v"]) + torch.square(var["w"])))
                     },
                 nodes=nodes,
                 )
@@ -351,9 +353,11 @@ def run(cfg: PhysicsNeMoConfig) -> None:
 
 
     # monitors for the interior domain 
-    global_monitor = PointwiseMonitor(                                                                                                                                                                                      interior_mesh.sample_interior(100),                                                                                                                                                                                 output_names=["u", "v", "w", "p"],
-        metrics={"InteriorVelocity": lambda var: torch.mean(torch.sqrt( torch.square(var["u"]) + torch.square(var["v"]) + torch.square(var["w"])))
-        },                                                                                                                                                                                                                  nodes=nodes,     
+    global_monitor = PointwiseMonitor(
+            interior_mesh.sample_interior(100),                                                                                                                                                                                 
+            output_names=["u", "v", "w", "p"],
+            metrics={"InteriorVelocity": lambda var: torch.mean(torch.sqrt( torch.square(var["u"]) + torch.square(var["v"]) + torch.square(var["w"])))},                                                                       
+            nodes=nodes,     
         requires_grad=True,                                                                                                                                                                                                                   
     )                                                                                                                                                                                                                                         
     domain.add_monitor(global_monitor)      
@@ -388,7 +392,6 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     VelocityDataPINNs=ReadVTUFile(os.path.join("inferencers/%s.vtu"%VelocityFileName))
     VelocityDataPINNsRescaled=reverse_normalize_mesh_vtk(VelocityDataPINNs,MeshCentroidOld,cgsFactor)
     WriteVTUFile(os.path.join("inferencers/%s_Rescaled.vtu"%VelocityFileName),VelocityDataPINNsRescaled)
-
 
     #--------------------------- Compute Data Loss ------------------------------------------------
     print ("\n"+"-"*30)

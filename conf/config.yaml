@@ -20,7 +20,7 @@ defaults :
       - fully_connected
   - scheduler: tf_exponential_lr
   - optimizer: adam
-  - loss: grad_norm
+  - loss: sum
   - _self_
 
 arch:
@@ -32,19 +32,19 @@ jit: true
 
 scheduler:
   decay_rate: 0.95
-  decay_steps: 1000
+  decay_steps: 15000
 
 training:
-  rec_results_freq: 100
-  rec_constraint_freq: 100
-  rec_monitor_freq: 100
-  rec_inference_freq: 100
-  max_steps : 100000
+  rec_results_freq: 1000
+  rec_constraint_freq: 1000
+  rec_monitor_freq: 1000
+  rec_inference_freq: 1000
+  max_steps : 1500000
 
 batch_size:
-  inlet: 200
-  outlet: 200
-  no_slip: 1000
-  interior: 15000
-  integral_continuity: 200
+  inlet: 750
+  outlet: 750
+  no_slip: 15000
+  interior: 30000
+  integral_continuity: 750
   data: 1024
