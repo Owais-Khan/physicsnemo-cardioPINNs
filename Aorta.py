@@ -51,7 +51,7 @@ from physicsnemo.sym.domain.inferencer import PointVTKInferencer
 from physicsnemo.sym.models.moving_time_window import MovingTimeWindowArch
 
 
-@physicsnemo.sym.main(config_path="conf", config_name="config")
+@physicsnemo.sym.main(config_path="conf", config_name="config_lrannealing")
 def run(cfg: PhysicsNeMoConfig) -> None:
 
     #------------------ Input Variables ------------------------------------------------
@@ -231,8 +231,9 @@ def run(cfg: PhysicsNeMoConfig) -> None:
 
     print ("--- Creating Inlet Dirichlet Boundary Condition...")
     PeakInletVel=(2*(InflowRate/inlet_area))
-    print ("------ Max Inlet Velocity is: %.05f"%PeakInletVel)
-    print ("------ Inlet Reynolds # is: %.05f"%((rho*(PeakInletVel*0.5)*(2*inlet_radius))/nu))
+    print ("\n------ Assigned Flow Rate at %s: %.05f"%(os.path.splitext(os.path.basename(inlet_path))[0],InflowRate))
+    print ("--------- Peak Velocity is:        %.05f"%PeakInletVel)
+    print ("--------- Peak Reynolds # is:      %.05f"%((rho*(PeakInletVel*0.5)*(2*inlet_radius))/nu))
     u, v, w = circular_parabola(
         Symbol("x"),
         Symbol("y"),
@@ -248,11 +249,39 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         outvar={"u": u, "v": v, "w": w},
         batch_size=cfg.batch_size.inlet,
     )
-    domain.add_constraint(inlet, "inlet")
+    domain.add_constraint(inlet, "Dirichlet_Inlet")
+
+
+    """for i in range(len(outlet_mesh)):
+        flow_rate_=(outlet_area[i]/np.sum(outlet_area))*InflowRate
+        peak_outlet_vel_=2*flow_rate_/outlet_area[i]
+        print ("\n------ Assigned Flow Rate at %s:      %.05f"%(os.path.splitext(os.path.basename(outlet_path[i]))[0],flow_rate_))
+        print ("--------- Peak Velocity is:           %.05f"%peak_outlet_vel_)
+        print ("--------- Peak Reynolds # is:         %.05f"%((rho*(peak_outlet_vel_*0.5)*(2*outlet_radius[i]))/nu))
+
+
+        u, v, w = circular_parabola(
+            Symbol("x"),                                                                                                                                                       
+            Symbol("y"),                                                                                                                                                       
+            Symbol("z"),                                                                                                                                                       
+            center=outlet_centroid[i],
+            normal=outlet_normal_vectors[i],                                                                                                                
+            radius=outlet_radius[i],
+            max_vel=2*(flow_rate_/outlet_area[i]),)  
+
+        outlet_constraint_ = PointwiseBoundaryConstraint(
+            nodes=nodes,
+            geometry=outlet_mesh[i],
+            outvar={"u":u, "v":v, "w": w},
+            batch_size=cfg.batch_size.outlet,
+        )
+        domain.add_constraint(outlet_constraint_, "Dirichlet_%s"%os.path.splitext(os.path.basename(outlet_path[i]))[0])"""
+
+
 
 
     print ("\n--- Creating Integral Boundary Condition at Inlet...")
-    # Integral Continuity 1                                                                                                                                                                             
+    # Integral Continuity 1                                                                                                                                 
     print ("------ Assigned Flow Rate at Inlet: %.05f"%InflowRate)
     integral_continuity = IntegralBoundaryConstraint( 
         nodes=nodes,
@@ -277,7 +306,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
             integral_batch_size=cfg.batch_size.integral_continuity, 
             lambda_weighting={"normal_dot_vel": 0.1},
         )                                                                                                                                                          
-        domain.add_constraint(integral_continuity, "Integral_%s"%os.path.splitext(os.path.basename(outlet_path[i]))[0])    
+        domain.add_constraint(integral_continuity, "Integral_%s"%os.path.splitext(os.path.basename(outlet_path[i]))[0])
 
 
     print ("--- Creating Interior Boundary Conditions (Continuity, Momentum)...")
@@ -287,6 +316,13 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         geometry=interior_mesh,       
         outvar={"continuity": 0, "momentum_x": 0, "momentum_y": 0, "momentum_z": 0},    
         batch_size=cfg.batch_size.interior,
+        compute_sdf_derivatives=True,
+        lambda_weighting={
+            "continuity": Symbol("sdf"),
+            "momentum_x": Symbol("sdf"),
+            "momentum_y": Symbol("sdf"),
+            "momentum_z": Symbol("sdf"),
+        },
         )            
     domain.add_constraint(interior, name="Interior_"+VelocityFileName)
 
