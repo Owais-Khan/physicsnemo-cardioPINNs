@@ -59,7 +59,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     rho=1.06 # density in CGS units.
     cgsFactor=0.1 #multiply mesh/data by this factor to convert to cgs. Keep 1 by default.
     CenterInput=True #Normalize the input to enhance convergence
-    DistanceThresholdPercentile=75 #How far away from wall to sample data
+    DistanceThresholdPercentile=90 #How far away from wall to sample data
     InflowRate=241 #ml/s
 
     #Do not touch. Work in progress
@@ -249,7 +249,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         outvar={"u": u, "v": v, "w": w},
         batch_size=cfg.batch_size.inlet,
     )
-    domain.add_constraint(inlet, "Dirichlet_Inlet")
+    #domain.add_constraint(inlet, "Dirichlet_Inlet")
 
 
     """for i in range(len(outlet_mesh)):
@@ -291,7 +291,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         integral_batch_size=cfg.batch_size.integral_continuity,                                    
         lambda_weighting={"normal_dot_vel": 0.1},
         )                      
-    domain.add_constraint(integral_continuity, "Integral_Inlet") 
+    #domain.add_constraint(integral_continuity, "Integral_Inlet") 
                                                                                                                                                                                                                                               
     # Integral Continuity 2                                                                                                                                                                                      
     print ("\n--- Creating Integral Boundary Condition at Outlets Using Area Ratios...")
@@ -306,7 +306,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
             integral_batch_size=cfg.batch_size.integral_continuity, 
             lambda_weighting={"normal_dot_vel": 0.1},
         )                                                                                                                                                          
-        domain.add_constraint(integral_continuity, "Integral_%s"%os.path.splitext(os.path.basename(outlet_path[i]))[0])
+        #domain.add_constraint(integral_continuity, "Integral_%s"%os.path.splitext(os.path.basename(outlet_path[i]))[0])
 
 
     print ("--- Creating Interior Boundary Conditions (Continuity, Momentum)...")

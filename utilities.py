@@ -19,7 +19,7 @@ def circular_parabola(x, y, z, center, normal, radius, max_vel):
     parabola = max_vel * Max((1 - (distance / radius) ** 2), 0)
     return normal[0] * parabola, normal[1] * parabola, normal[2] * parabola
 
-    # normalize meshes
+# normalize meshes
 def normalize_mesh(mesh, center, scale):
     mesh = mesh.translate([-c for c in center])
     mesh = mesh.scale(scale)
@@ -198,8 +198,40 @@ def CardioPINNsGetVelocityData(velocity_path,VelocityArrayName,DistanceThreshold
 
     return data_invar_numpy, data_outvar_numpy
 
+def SinglePointVTK(x,y,z):
+    # Create a single point with a normal and scalar
+    onePts = vtk.vtkPoints()
+    onePts.SetNumberOfPoints(1)
+    onePts.SetPoint(0,(x,y,z))
 
+    oneScalars = vtk.vtkFloatArray()
+    oneScalars.SetNumberOfTuples(1)
+    oneScalars.SetTuple1(0,5.0)
+    oneScalars.SetName("scalarPt")
 
+    oneNormals = vtk.vtkFloatArray()
+    oneNormals.SetNumberOfComponents(3)
+    oneNormals.SetNumberOfTuples(1)
+    oneNormals.SetTuple3(0,1,1,1)
+    oneNormals.SetName("normalPt")
+
+    oneData = vtk.vtkPolyData()
+    oneData.SetPoints(onePts)
+    oneData.GetPointData().SetScalars(oneScalars)
+    oneData.GetPointData().SetNormals(oneNormals)
+    
+    return oneData
+
+def ProbeVelocityData(x,y,z,Data,ArrayName="Velocity"):
+    Point=SinglePointVTK(x,y,z)
+    Probe = vtk.vtkProbeFilter()
+    Probe.SetInputData(Point)
+    Probe.SetSourceData(Data)
+    Probe.Update()
+    u_=interpolator.GetOutput().GetPointData().GetArray(ArrayName).GetValue(0))
+    v_=interpolator.GetOutput().GetPointData().GetArray(ArrayName).GetValue(1))
+    w_=interpolator.GetOutput().GetPointData().GetArray(ArrayName).GetValue(2))
+    return u_,v_,w_
 
 ############ Input/Output ##################
 def ReadVTUFile(FileName):

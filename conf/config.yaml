@@ -42,7 +42,7 @@ training:
   rec_constraint_freq: 1000
   rec_monitor_freq: 1000
   rec_inference_freq: 1000
-  max_steps : 1000000
+  max_steps : 300000
 
 batch_size:
   inlet: 750
