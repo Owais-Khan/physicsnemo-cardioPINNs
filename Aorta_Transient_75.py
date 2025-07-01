@@ -58,12 +58,8 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     nu=0.04 #viscosity assuming Mesh is in CGS units.
     rho=1.06 # density in CGS units.
     cgsFactor=0.1 #multiply mesh/data by this factor to convert to cgs. Keep 1 by default.
-    N_Files=25 #No of files
-    Period=1.0 #seconds
-
     CenterInput=True #Normalize the input to enhance convergence
-    DistanceThresholdPercentile=75 #How far away from wall to sample data
-    InflowRate=241 #ml/s
+    DistanceThresholdPercentile=95 #How far away from wall to sample data
 
     #Do not touch. Work in progress
     MeshScale = 1.0 #Scaling factor for the mesh. If None, use Bounding Box*10 
@@ -73,8 +69,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     # ----------------- Read the STL Geometry Paths -------------------------------------
     point_path = to_absolute_path("./stl_files/Data1_Stanford4DFlowMRI/")
     MeshPath=to_absolute_path("./stl_files/Data1_Stanford4DFlowMRI/mesh-complete.mesh.vtu")
-    velocity_path = "/mnt/c/Users/owais/Research_Local/Simvascular_physicsnemo_cardioPINNs/Data1_Stanford4DFlowMRI_13Frames/"
-    
+
     print ("\n"+"-"*20)
     print ("Reading Surface Files for PINNs")
     #Get the Paths for the Inflow surfaces
@@ -117,7 +112,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     MeshCentroidOld= tuple(GetCentroid(interior_mesh_vtk))  
     BBoxOld=GetBoundingBox(interior_mesh_vtk)
 
-    #Center the model to origin. Apply cgs factor (physics-nemo)
+    #No translation. Only Scale the model by cgs factor (physics-nemo model)
     inlet_mesh = normalize_mesh(inlet_mesh, MeshCentroidOld, cgsFactor)
     outlet_mesh = [normalize_mesh(outlet_mesh_, MeshCentroidOld, cgsFactor) for outlet_mesh_ in outlet_mesh]
     noslip_mesh = normalize_mesh(noslip_mesh, MeshCentroidOld, cgsFactor)
@@ -125,7 +120,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     interior_mesh = normalize_mesh(interior_mesh, MeshCentroidOld, cgsFactor)
 
 
-    #Center the model to origin. Apply cgs factor (vtk)
+    #No translation. Only Scale the model by cgs factor (vtk model)
     inlet_mesh_vtk = normalize_mesh_vtk(inlet_mesh_vtk, MeshCentroidOld, cgsFactor)
     outlet_mesh_vtk = [normalize_mesh_vtk(outlet_mesh_, MeshCentroidOld, cgsFactor) for outlet_mesh_ in outlet_mesh_vtk]
     noslip_mesh_vtk = normalize_mesh_vtk(noslip_mesh_vtk, MeshCentroidOld, cgsFactor)
@@ -145,7 +140,14 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     print ("--- New Y Bounds: (%.05f %.05f). Range=%.05f"%(BBoxNew[2],BBoxNew[3],BBoxNew[3]-BBoxNew[2]))
     print ("--- New Z Bounds: (%.05f %.05f). Range=%.05f"%(BBoxNew[4],BBoxNew[5],BBoxNew[5]-BBoxNew[4])) 
 
-    #----------------------------- Geometric Parameters -------------------------------
+    #No translation. Only Scale the Velocity Data by cgs.
+    VelocityFileName=os.path.splitext(os.path.basename(VelocityFilePath))[0]
+    print ("\n"+"-"*30)
+    print ("Reading the Velocity File for Data: %s.vtu"%VelocityFileName)
+    VelocityData=ReadVTUFile(VelocityFilePath)
+    VelocityDataScaled=normalize_mesh_vtk(VelocityData,MeshCentroidOld,cgsFactor)
+
+    #----------------------------- Geometric Parame:ters -------------------------------
     #Surface Normals
     WallNormals=SurfaceNormals(interior_mesh_vtk)
     
@@ -172,7 +174,6 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     inlet_radius=np.sqrt(inlet_area/np.pi)
     outlet_radius=[np.sqrt(outlet_area_/np.pi) for outlet_area_ in outlet_area]
 
-
     print ("\n"+"-"*30)
     print ("Inlet Centroid: (%.05f, %.05f, %.05f)"%(inlet_centroid[0],inlet_centroid[1],inlet_centroid[2]))
     print ("Inlet Normal:   (%.05f, %.05f, %.05f)"%(inlet_normal_vector[0],inlet_normal_vector[1],inlet_normal_vector[2]))
@@ -184,6 +185,17 @@ def run(cfg: PhysicsNeMoConfig) -> None:
             print ("%s Normal:   (%.05f, %.05f, %.05f)"%(outlet_filename_,outlet_normal_vectors[i][0],outlet_normal_vectors[i][1],outlet_normal_vectors[i][2]))
             print ("%s Area:     %.05f"%(outlet_filename_,outlet_area[i]))
 
+    #-------------------- Load and Normalize Velocity Data -----------------------------------
+    velData_invar, velData_outvar, VelocityDataScaled=CardioPINNsGetVelocityData(VelocityDataScaled,VelocityArrayName,DistanceThresholdPercentile)
+    NumberOfVelPoints=len(velData_outvar["u"])
+    VelocityMagnitude=torch.mean(torch.sqrt(torch.square(torch.tensor(velData_outvar["u"]))  + torch.square(torch.tensor(velData_outvar["v"])) + torch.square(torch.tensor(velData_outvar["w"]))))
+    InflowRate=VelocityMagnitude*inlet_area
+    print ("--- Number of Sampled Points Away from the Wall: %d"%NumberOfVelPoints)
+    print ("--- Velocity Magnitude: %.05f"%VelocityMagnitude)
+    print ("--- Inflow Rate is: %.05f"%InflowRate)
+    print ("--- Saving Sampled Data: %s.vtu"%VelocityFileName)
+    subprocess.call("mkdir sampled_data",shell=True)
+    WriteVTUFile(os.path.join("sampled_data",VelocityFileName+".vtu"),VelocityDataScaled)
     # make aneurysm domain
     domain = Domain()
 
@@ -191,14 +203,10 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     print ("\n"+"-"*30)
     print ("Creating Network Architecture...")
 
-    # time window parameters
-    t_symbol = Symbol("t")
-    time_range = {t_symbol: (0, Period)}
-    
     #Navier-Stokes Solver
     # make list of nodes to unroll graph on
     print ("--- Creating Navier-Stokes Node...")
-    ns = NavierStokes(nu=nu, rho=1.06, dim=3, time=True)
+    ns = NavierStokes(nu=nu, rho=1.06, dim=3, time=False)
 
     #Normal Dot Vector
     normal_dot_vel = NormalDotVec(["u", "v", "w"])
@@ -206,7 +214,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     #Flow Net
     print ("--- Flow Net Architecture...")
     flow_net = instantiate_arch(
-        input_keys=[Key("x"), Key("y"), Key("z"),Key("t")],
+        input_keys=[Key("x"), Key("y"), Key("z")],
         output_keys=[Key("u"), Key("v"), Key("w"), Key("p")],
         cfg=cfg.arch.fully_connected,)
 
@@ -215,22 +223,18 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     nodes = (ns.make_nodes()
         + normal_dot_vel.make_nodes()
         + [flow_net.make_node(name="flow_network")]
-    ) 
-
-    #make domain
-    domain=Domain()
-
+    )
 
 #---------------------------- Constraints -----------------------------#
     print ("\n"+"-"*30)
     print ("Creating Initial, Boudnary and Data Constraints")
 
-    """print ("--- Creating Inlet Dirichlet Boundary Condition...")
+    print ("--- Creating Inlet Dirichlet Boundary Condition...")
     PeakInletVel=(2*(InflowRate/inlet_area))
     print ("\n------ Assigned Flow Rate at %s: %.05f"%(os.path.splitext(os.path.basename(inlet_path))[0],InflowRate))
     print ("--------- Peak Velocity is:        %.05f"%PeakInletVel)
     print ("--------- Peak Reynolds # is:      %.05f"%((rho*(PeakInletVel*0.5)*(2*inlet_radius))/nu))
-    u, v, w = circular_parabola(
+    """u, v, w = circular_parabola(
         Symbol("x"),
         Symbol("y"),
         Symbol("z"),
@@ -277,8 +281,8 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         domain.add_constraint(integral_continuity, "Integral_%s"%os.path.splitext(os.path.basename(outlet_path[i]))[0])"""
 
 
-
     print ("--- Creating Interior Boundary Conditions (Continuity, Momentum)...")
+    # Boundary Conditions for Interior                                                                                                                                                                           
     interior = PointwiseInteriorConstraint(                                                                                         
         nodes=nodes,                                                                                                                
         geometry=interior_mesh,       
@@ -289,10 +293,11 @@ def run(cfg: PhysicsNeMoConfig) -> None:
             "continuity": Symbol("sdf"),
             "momentum_x": Symbol("sdf"),
             "momentum_y": Symbol("sdf"),
-            "momentum_z": Symbol("sdf")},
-        parameterization=time_range,
+            "momentum_z": Symbol("sdf"),
+        },
         )            
-    domain.add_constraint(interior, name="Interior")
+    domain.add_constraint(interior, name="Interior_"+VelocityFileName)
+
 
     print ("--- Creating No-Slip Boundary Conditions on Wall ...") 
     #Boundary Conditions for the Wall
@@ -301,9 +306,9 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         geometry=noslip_mesh,
         outvar={"u": 0, "v": 0, "w": 0},
         batch_size=cfg.batch_size.no_slip,
-        parameterization=time_range,
         )
-    domain.add_constraint(interior, name="NoSlip")
+    domain.add_constraint(no_slip, name="NoSlip_"+VelocityFileName)
+
 
     print ("--- Creating Zero-Pressure Boundary Condition at Inlet...") 
     #Boundary Conditions for Inlet Pressure
@@ -312,70 +317,49 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         geometry=inlet_mesh,
         outvar={"p": 0},
         batch_size=cfg.batch_size.inlet,
-        parameterization=time_range,
         )
-    domain.add_constraint(interior, name="InletPressure")
+    domain.add_constraint(inlet_pressure, name="InletPressure_"+VelocityFileName)
 
 
-    #Read All of the Velocity Data
-    print ("\n"+"-"*30)
-    velocity_files=sorted(glob(os.path.join(velocity_path,"*.vtu")))
-    if len(velocity_files)==0: raise Exception("No velocity data found. Exiting...")
-    else: print ("Number of Velocity Files: %d"%len(velocity_files))
-    #Create symbolic represntation of the data
-    VelocityData=[];U=[];V=[];W=[]
-    for i in range(len(velocity_files)):
-        print ("--- Reading Data from: %s"%os.path.basename(velocity_files[i]))
-        VelocityData.append( normalize_mesh_vtk(ReadVTUFile(velocity_files[i]),MeshCentroidOld,cgsFactor))
-        u_,v_,w_=ProbeVelocityData(Symbol("x"),Symbol("y"),Symbol("z"),VelocityData[i],ArrayName=VelocityArrayName)
-        U.append(u_)
-        V.append(v_)
-        W.append(w_)
-
-    #Create point constraint for each of the time step
-    print ("\n"+"-"*30)
-    Data_Constraints=[]
-    timeArray=np.linspace(0,Period,len(VelocityData))
-    for i in range(len(VelocityData)):
-        print ("--- Creating Constraints for: %s"%os.path.basename(velocity_files[i]))
-        dataConstraint_=PointwiseInteriorConstraint(
-            nodes=nodes,
-            geometry=interior_mesh,
-            outvar={"u": U[i], "v": V[i], "w": W[i]},
-            batch_size=cfg.batch_size.interior,
-            parameterization={t_symbol: timeArray[i]},
-        )
-        domain.add_constraint(dataConstraint_, "DataConstraint_%d"%i)
+    #Data Loss 
+    data = PointwiseConstraint.from_numpy(
+        nodes=nodes,                                     
+        invar=velData_invar,                                                                                                         
+        outvar=velData_outvar,                                                                                                         
+        batch_size=cfg.batch_size.data,                                                                                              
+        )                                                                                                                                             
+    domain.add_constraint(data, "DataConstraints_"+VelocityFileName) 
 
 
 #----------------------------------- Add Monitors to Output ------------------------------
-    """# Inlet Pressure, Velocity and Flow Rates
+    # Inlet Pressure, Velocity and Flow Rates
     inlet_mesh_filename=os.path.splitext(os.path.basename(inlet_path))[0]
     inlet_monitor = PointwiseMonitor(
         inlet_mesh.sample_boundary(25),
         output_names=["u","v","w","p"],
         metrics={
-            inlet_mesh_filename+"_pressure_%s"%VelocityFileName: lambda var: torch.mean(var["p"]),
-            inlet_mesh_filename+"_flowrate_%s"%VelocityFileName: lambda var: inlet_area*torch.mean(torch.sqrt(torch.square(var["u"]) + torch.square(var["v"]) + torch.square(var["w"])))
+            inlet_mesh_filename+"_pressure": lambda var: torch.mean(var["p"]),
+            inlet_mesh_filename+"_flowrate": lambda var: inlet_area*torch.mean(torch.sqrt(torch.square(var["u"]) + torch.square(var["v"]) + torch.square(var["w"])))
             },
         nodes=nodes,
     )
     domain.add_monitor(inlet_monitor)
 
     #Outlet Pressure, Velocity and Flow Rates
+    outlet_monitors=[]
     for i in range(len(outlet_mesh)):
         mesh_filename_=os.path.splitext(os.path.basename(outlet_path[i]))[0]
         outlet_monitor_= PointwiseMonitor(
                 outlet_mesh[i].sample_boundary(25),
                 output_names=["u","v","w","p"],
                 metrics={
-                    mesh_filename_+"_pressure_%s"%VelocityFileName: lambda var: torch.mean(var["p"]),
-                    mesh_filename_+"_flowrate_%s"%VelocityFileName: lambda var: outlet_area[i]*torch.mean(torch.sqrt( torch.square(var["u"]) + torch.square(var["v"]) + torch.square(var["w"])))
+                    mesh_filename_+"_pressure": lambda var: torch.mean(var["p"]),
+                    mesh_filename_+"_flowrate": lambda var: outlet_area[i]*torch.mean(torch.sqrt( torch.square(var["u"]) + torch.square(var["v"]) + torch.square(var["w"])))
                     },
                 nodes=nodes,
                 )
-        domain.add_monitor(outlet_monitor_)
-
+        outlet_monitors.append(outlet_monitor_)
+    for i in range(len(outlet_mesh)): domain.add_monitor(outlet_monitors[i])
 
     # monitors for the interior domain 
     global_monitor = PointwiseMonitor(
@@ -386,7 +370,6 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         requires_grad=True,                                                                                                                                                                                                                   
     )                                                                                                                                                                                                                                         
     domain.add_monitor(global_monitor)      
-
 
     #---------------------- Add Output Validation Data ----------------------------
     vtk_obj = VTKFromFile(os.path.join(VelocityFilePath),export_map={VelocityArrayName+"_PINNs": ["u", "v", "w"], "pressure_PINNs": ["p"]},)
@@ -401,7 +384,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         requires_grad=False,
         batch_size=1024,
     )
-    domain.add_inferencer(grid_inference, VelocityFileName+".vtu")"""
+    domain.add_inferencer(grid_inference, VelocityFileName+".vtu")
 
 
     #---------------------------------------- Start the Solver -------------------------------------
@@ -410,9 +393,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     # start solver
     slv.solve()
 
-
-
-    """#---------------------------- Rescale the Inferenced Mesh -------------------------------------
+    #---------------------------- Rescale the Inferenced Mesh -------------------------------------
     #Renormalize the Inference File
     print ("\n"+"-"*30)
     print ("ReScaling the Velocity Data: %s.vtu"%VelocityFileName)
@@ -424,7 +405,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     print ("\n"+"-"*30)
     print ("Storing Data Error in: inferencers/DataLoss.dat")
     DataLossFile=open(os.path.join("inferencers/DataLoss.dat"),'a')
-    velData_invar_PINNs, velData_outvar_PINNs=CardioPINNsGetVelocityData(VelocityDataPINNs,VelocityArrayName+"_PINNs",DistanceThresholdPercentile) #Extract the Same Points as used in DataLoss
+    velData_invar_PINNs, velData_outvar_PINNs, VelocityDataPINNs=CardioPINNsGetVelocityData(VelocityDataPINNs,VelocityArrayName+"_PINNs",DistanceThresholdPercentile) #Extract the Same Points as used in DataLoss
     
     #Compute Error 
     VelocityMagnitudeSum=torch.sum(torch.square(torch.tensor(velData_outvar["u"]))  + torch.square(torch.tensor(velData_outvar["v"])) + torch.square(torch.tensor(velData_outvar["w"])))
@@ -436,17 +417,28 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     VelocityError=(VelocityErrorSum/VelocityMagnitudeSum)**0.5
     DataLossFile.write("%s %.05f\n"%(VelocityFileName,VelocityError))
     DataLossFile.close()
-    print ("\n\n\n"+"-"*30)"""
+    print ("\n\n\n"+"-"*30)
     
     #Delete the solver for next timestep
-    #del flow_net, nodes, domain, interior, vtk_obj, no_slip, inlet_pressure, data, integral_continuity, inlet_monitor, outlet_monitor_, global_monitor, grid_inference, slv 
+    del flow_net, nodes, domain, interior, vtk_obj, no_slip, inlet_pressure, data, inlet_monitor, outlet_monitor_, outlet_monitors, global_monitor, grid_inference, slv, #integral_continuity, inlet_
 
     #Collect garbage
-    #gc.collect()
+    gc.collect()
 
     #collect pytorch's cuda chache
-    #torch.cuda.empty_cache()
+    torch.cuda.empty_cache()
 
 if __name__ == "__main__":
+
+    velocity_path = "/mnt/c/Users/owais/Research_Local/Simvascular_physicsnemo_cardioPINNs/Data1_Stanford4DFlowMRI_25Frames/"
     
-    run()
+    #Read the Velocity Files available in the folder
+    velocity_files=glob(os.path.join(velocity_path,"*.vtu"))
+    if len(velocity_files)==0: raise Exception("No velocity data found. Exiting...")
+    else: print ("Number of Velocity Files: %d"%len(velocity_files))
+
+    #Loop over all of the files
+    for i in range(0,len(velocity_files)):
+        #Run Simulation
+        VelocityFilePath=velocity_files[i]
+        run()

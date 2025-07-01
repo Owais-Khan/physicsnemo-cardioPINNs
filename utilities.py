@@ -135,7 +135,8 @@ def GetDistanceFromWall(Volume,Surface=None):
 #Get the data within a certain distance
 def GetVelocityAwayFromWall(Volume,DistanceThreshold,ArrayName):
     #Create an array to store velocity
-    u=[]; v=[]; w=[]; x=[]; y=[]; z=[]
+    u=[]; v=[]; w=[]; x=[]; y=[]; z=[]; 
+    idx=np.zeros(Volume.GetNumberOfPoints())
 
     Velocity=vtk_to_numpy(Volume.GetPointData().GetArray(ArrayName))
     for i in range(Volume.GetNumberOfPoints()):
@@ -150,11 +151,11 @@ def GetVelocityAwayFromWall(Volume,DistanceThreshold,ArrayName):
             u.append(velocity_[0])
             v.append(velocity_[1])
             w.append(velocity_[2])
-
+            idx[i]=1
     x=np.array(x); y=np.array(y); z=np.array(z)
     u=np.array(u); v=np.array(v); w=np.array(w)
 
-    return x,y,z,u,v,w
+    return x,y,z,u,v,w,idx
                 
 
 def CardioPINNsGetVelocityData(velocity_path,VelocityArrayName,DistanceThresholdPercentile):
@@ -175,7 +176,11 @@ def CardioPINNsGetVelocityData(velocity_path,VelocityArrayName,DistanceThreshold
     DistanceThreshold=np.percentile(DistanceFromWallNonZero,DistanceThresholdPercentile)
 
     #Get Velocity Away From the Wall
-    x,y,z,u,v,w=GetVelocityAwayFromWall(VelocityData,DistanceThreshold,VelocityArrayName)
+    x,y,z,u,v,w,idx =GetVelocityAwayFromWall(VelocityData,DistanceThreshold,VelocityArrayName)
+
+
+    #Add Locations were velocity data is sampled
+    VelocityData=PolyDataAddPointArray(VelocityData,idx,"SampledData")
 
     #Create a Dictionary to Assign As Input variables Constrains in PhysicsNemo
     data_invar={}
@@ -196,7 +201,7 @@ def CardioPINNsGetVelocityData(velocity_path,VelocityArrayName,DistanceThreshold
     data_outvar_numpy["momentum_y"] = np.zeros_like(data_outvar_numpy["u"])
     data_outvar_numpy["momentum_z"] = np.zeros_like(data_outvar_numpy["u"])
 
-    return data_invar_numpy, data_outvar_numpy
+    return data_invar_numpy, data_outvar_numpy, VelocityData
 
 def SinglePointVTK(x,y,z):
     # Create a single point with a normal and scalar
@@ -228,9 +233,9 @@ def ProbeVelocityData(x,y,z,Data,ArrayName="Velocity"):
     Probe.SetInputData(Point)
     Probe.SetSourceData(Data)
     Probe.Update()
-    u_=interpolator.GetOutput().GetPointData().GetArray(ArrayName).GetValue(0))
-    v_=interpolator.GetOutput().GetPointData().GetArray(ArrayName).GetValue(1))
-    w_=interpolator.GetOutput().GetPointData().GetArray(ArrayName).GetValue(2))
+    u_=Probe.GetOutput().GetPointData().GetArray(ArrayName).GetValue(0)
+    v_=Probe.GetOutput().GetPointData().GetArray(ArrayName).GetValue(1)
+    w_=Probe.GetOutput().GetPointData().GetArray(ArrayName).GetValue(2)
     return u_,v_,w_
 
 ############ Input/Output ##################
