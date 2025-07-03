@@ -51,6 +51,7 @@ def EstimateInflowRate(inlet_mesh_vtk,inlet_centroid,inlet_normal_vector,velData
     VelocitySorted=Velocity[RadiusSorted_indices]
     DotValuesSorted=DotValues[RadiusSorted_indices]
 
+
     #Estimate max velocity assuming parabolic profile (vmax=v/(1-r^2/R^2))
     V_projected=[]
     Vmax_parabolic=[]
@@ -60,6 +61,5 @@ def EstimateInflowRate(inlet_mesh_vtk,inlet_centroid,inlet_normal_vector,velData
             V_projected.append(Velocity[i]*DotValues[i])
 
     V=(InletRadiusThreshold/100.)*np.average(V_projected)+(1-InletRadiusThreshold/100.)*(np.average(Vmax_parabolic)/2.)
-
     InflowRate=np.pi*InletRadius**2*V
     return InflowRate

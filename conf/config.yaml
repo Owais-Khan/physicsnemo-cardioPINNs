@@ -40,21 +40,21 @@ training:
   rec_results_freq: 100
   rec_constraint_freq: 100
   rec_monitor_freq: 100
-  rec_inference_freq: 100
+  rec_inference_freq: 1000
   max_steps : 1000000
 
 stop_criterion:
   metric: "InteriorVelocity"
   min_delta: 0.5
-  patience: 100
+  patience: 25000
   mode: "max"
   freq: 100
   strict: true
 
 batch_size:
-  inlet: 100
-  outlet: 100
-  no_slip: 1000
-  interior: 3000
-  integral_continuity: 100
+  inlet: 500
+  outlet: 500
+  no_slip: 10000
+  interior: 20000
+  integral_continuity: 500
   data: 1024

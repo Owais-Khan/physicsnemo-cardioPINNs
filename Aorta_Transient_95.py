@@ -197,7 +197,6 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     subprocess.call("mkdir sampled_data",shell=True)
     WriteVTUFile(os.path.join("sampled_data",VelocityFileName+".vtu"),VelocityDataScaled)
 
-    print (1)
     # make aneurysm domain
     domain = Domain()
 
