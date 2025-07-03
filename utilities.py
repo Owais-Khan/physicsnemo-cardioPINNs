@@ -19,6 +19,7 @@ def circular_parabola(x, y, z, center, normal, radius, max_vel):
     parabola = max_vel * Max((1 - (distance / radius) ** 2), 0)
     return normal[0] * parabola, normal[1] * parabola, normal[2] * parabola
 
+
 # normalize meshes
 def normalize_mesh(mesh, center, scale):
     mesh = mesh.translate([-c for c in center])
@@ -158,7 +159,7 @@ def GetVelocityAwayFromWall(Volume,DistanceThreshold,ArrayName):
     return x,y,z,u,v,w,idx
                 
 
-def CardioPINNsGetVelocityData(velocity_path,VelocityArrayName,DistanceThresholdPercentile):
+def CardioPINNsGetVelocityData(velocity_path,VelocityArrayName,DistanceThreshold): #swithc to DistanceThresholdPercentile to automatically detect distance away from wall
     #NOTE will need to normalize for future since velocity data is already normalized
 
     #Read the Velocity Data
@@ -173,7 +174,7 @@ def CardioPINNsGetVelocityData(velocity_path,VelocityArrayName,DistanceThreshold
     VelocityData=PolyDataAddPointArray(VelocityData,DistanceFromWall,"signedDistanceFromWall")
 
     #Distance Away from the Wall
-    DistanceThreshold=np.percentile(DistanceFromWallNonZero,DistanceThresholdPercentile)
+    #DistanceThreshold=np.percentile(DistanceFromWallNonZero,DistanceThresholdPercentile)
 
     #Get Velocity Away From the Wall
     x,y,z,u,v,w,idx =GetVelocityAwayFromWall(VelocityData,DistanceThreshold,VelocityArrayName)

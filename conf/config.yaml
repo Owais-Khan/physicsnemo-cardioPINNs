@@ -31,23 +31,30 @@ arch:
 optimizer: 
   lr: 1e-2
 
-jit: true
-
 scheduler:
   decay_rate: 0.95
-  decay_steps: 150000
+  decay_steps: 100000
+
 
 training:
-  rec_results_freq: 1000
-  rec_constraint_freq: 1000
-  rec_monitor_freq: 1000
-  rec_inference_freq: 1000
-  max_steps : 300000
+  rec_results_freq: 100
+  rec_constraint_freq: 100
+  rec_monitor_freq: 100
+  rec_inference_freq: 100
+  max_steps : 1000000
+
+stop_criterion:
+  metric: "InteriorVelocity"
+  min_delta: 0.5
+  patience: 100
+  mode: "max"
+  freq: 100
+  strict: true
 
 batch_size:
-  inlet: 750
-  outlet: 750
-  no_slip: 3000
-  interior: 6000
-  integral_continuity: 750
+  inlet: 100
+  outlet: 100
+  no_slip: 1000
+  interior: 3000
+  integral_continuity: 100
   data: 1024

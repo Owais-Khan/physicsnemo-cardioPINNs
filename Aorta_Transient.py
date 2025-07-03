@@ -17,6 +17,7 @@
 import os
 import warnings
 from utilities import *
+from EstimateInflowRate import EstimateInflowRate
 import torch
 import numpy as np
 from sympy import Symbol, sqrt, Max
@@ -59,7 +60,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     rho=1.06 # density in CGS units.
     cgsFactor=0.1 #multiply mesh/data by this factor to convert to cgs. Keep 1 by default.
     CenterInput=True #Normalize the input to enhance convergence
-    DistanceThresholdPercentile=95 #How far away from wall to sample data
+    RadiusThreshold=10 #What percentange of lumen to sample along centerline. 90% = sample 90% of lumen 
 
     #Do not touch. Work in progress
     MeshScale = 1.0 #Scaling factor for the mesh. If None, use Bounding Box*10 
@@ -186,19 +187,26 @@ def run(cfg: PhysicsNeMoConfig) -> None:
             print ("%s Area:     %.05f"%(outlet_filename_,outlet_area[i]))
 
     #-------------------- Load and Normalize Velocity Data -----------------------------------
-    velData_invar, velData_outvar, VelocityDataScaled=CardioPINNsGetVelocityData(VelocityDataScaled,VelocityArrayName,DistanceThresholdPercentile)
+    DistanceAwayFromWall=inlet_radius-(RadiusThreshold/100.)*inlet_radius
+    velData_invar, velData_outvar, VelocityDataScaled=CardioPINNsGetVelocityData(VelocityDataScaled,VelocityArrayName,DistanceAwayFromWall)
     NumberOfVelPoints=len(velData_outvar["u"])
     VelocityMagnitude=torch.mean(torch.sqrt(torch.square(torch.tensor(velData_outvar["u"]))  + torch.square(torch.tensor(velData_outvar["v"])) + torch.square(torch.tensor(velData_outvar["w"]))))
-    InflowRate=VelocityMagnitude*inlet_area
-    print ("--- Number of Sampled Points Away from the Wall: %d"%NumberOfVelPoints)
-    print ("--- Velocity Magnitude: %.05f"%VelocityMagnitude)
-    print ("--- Inflow Rate is: %.05f"%InflowRate)
+    InflowRate=EstimateInflowRate(inlet_mesh_vtk,inlet_centroid,inlet_normal_vector,velData_invar,velData_outvar,inlet_radius,RadiusThreshold)
+    print ("\n"+"-"*30)
+    print ("--- Distance to Sample Points Away from the Wall: %.05f"%DistanceAwayFromWall)
+    print ("--- Number of Sampled Points Away from the Wall:  %d"%NumberOfVelPoints)
+    print ("--- Velocity Magnitude of Sampled Points:         %.05f"%VelocityMagnitude)
+    print ("--- Estimated InflowRate is:                      %.05f"%InflowRate)
+    
+    #Save the sampled file
     print ("--- Saving Sampled Data: %s.vtu"%VelocityFileName)
     subprocess.call("mkdir sampled_data",shell=True)
     WriteVTUFile(os.path.join("sampled_data",VelocityFileName+".vtu"),VelocityDataScaled)
+    
+
+
     # make aneurysm domain
     domain = Domain()
-
 #---------------------------- Navier-Stokes ----------------------------------#
     print ("\n"+"-"*30)
     print ("Creating Network Architecture...")
@@ -230,11 +238,11 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     print ("Creating Initial, Boudnary and Data Constraints")
 
     print ("--- Creating Inlet Dirichlet Boundary Condition...")
-    PeakInletVel=(2*(InflowRate/inlet_area))
+    """PeakInletVel=(2*(InflowRate/inlet_area))
     print ("\n------ Assigned Flow Rate at %s: %.05f"%(os.path.splitext(os.path.basename(inlet_path))[0],InflowRate))
     print ("--------- Peak Velocity is:        %.05f"%PeakInletVel)
     print ("--------- Peak Reynolds # is:      %.05f"%((rho*(PeakInletVel*0.5)*(2*inlet_radius))/nu))
-    """u, v, w = circular_parabola(
+    u, v, w = circular_parabola(
         Symbol("x"),
         Symbol("y"),
         Symbol("z"),
@@ -249,7 +257,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         outvar={"u": u, "v": v, "w": w},
         batch_size=cfg.batch_size.inlet,
     )
-    domain.add_constraint(inlet, "Dirichlet_Inlet")
+    domain.add_constraint(inlet, "Dirichlet_Inlet")"""
 
 
     print ("\n--- Creating Integral Boundary Condition at Inlet...")
@@ -278,7 +286,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
             integral_batch_size=cfg.batch_size.integral_continuity, 
             lambda_weighting={"normal_dot_vel": 0.1},
         )                                                                                                                                                          
-        domain.add_constraint(integral_continuity, "Integral_%s"%os.path.splitext(os.path.basename(outlet_path[i]))[0])"""
+        domain.add_constraint(integral_continuity, "Integral_%s"%os.path.splitext(os.path.basename(outlet_path[i]))[0])
 
 
     print ("--- Creating Interior Boundary Conditions (Continuity, Momentum)...")
@@ -420,7 +428,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     print ("\n\n\n"+"-"*30)
     
     #Delete the solver for next timestep
-    del flow_net, nodes, domain, interior, vtk_obj, no_slip, inlet_pressure, data, inlet_monitor, outlet_monitor_, outlet_monitors, global_monitor, grid_inference, slv, #integral_continuity, inlet_
+    del flow_net, nodes, domain, interior, vtk_obj, no_slip, inlet_pressure, data, inlet_monitor, outlet_monitor_, outlet_monitors, global_monitor, grid_inference, slv, integral_continuity, inlet_
 
     #Collect garbage
     gc.collect()
@@ -430,7 +438,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
 
 if __name__ == "__main__":
 
-    velocity_path = "/mnt/c/Users/owais/Research_Local/Simvascular_physicsnemo_cardioPINNs/Data1_Stanford4DFlowMRI_25Frames/"
+    velocity_path = "/mnt/c/Users/owais/Research_Local/Simvascular_physicsnemo_cardioPINNs/Data1_Stanford4DFlowMRI_50Frames/"
     
     #Read the Velocity Files available in the folder
     velocity_files=glob(os.path.join(velocity_path,"*.vtu"))
@@ -440,5 +448,5 @@ if __name__ == "__main__":
     #Loop over all of the files
     for i in range(0,len(velocity_files)):
         #Run Simulation
-        VelocityFilePath=velocity_files[i]
+        VelocityFilePath=velocity_files[10]
         run()
