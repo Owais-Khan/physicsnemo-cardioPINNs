@@ -60,7 +60,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     rho=1.06 # density in CGS units.
     cgsFactor=0.1 #multiply mesh/data by this factor to convert to cgs. Keep 1 by default.
     CenterInput=True #Normalize the input to enhance convergence
-    RadiusThreshold=90. #What percentange of lumen to sample along centerline. 90% = sample 90% of lumen 
+    RadiusThreshold=20. #What percentange of lumen to sample along centerline. 90% = sample 90% of lumen 
 
     VelocityArrayName="Velocity" #Array name of the velocity in data files
 
@@ -245,7 +245,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     print ("\n------ Assigned Flow Rate at %s: %.05f"%(os.path.splitext(os.path.basename(inlet_path))[0],InflowRate))
     print ("--------- Peak Velocity is:        %.05f"%PeakInletVel)
     print ("--------- Peak Reynolds # is:      %.05f"%((rho*(PeakInletVel*0.5)*(2*inlet_radius))/nu))
-    """u, v, w = circular_parabola(
+    u, v, w = circular_parabola(
         Symbol("x"),
         Symbol("y"),
         Symbol("z"),
@@ -261,7 +261,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         batch_size=cfg.batch_size.inlet,
         #lambda_weighting={"u":1-0.01*RadiusThreshold, "v":1-0.01*RadiusThreshold, "w":1-0.01*RadiusThreshold}
     )
-    domain.add_constraint(inlet, "Dirichlet_Inlet")"""
+    domain.add_constraint(inlet, "Dirichlet_Inlet")
 
 
     print ("\n--- Creating Integral Boundary Condition at Inlet...")
@@ -273,7 +273,6 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         outvar={"normal_dot_vel": -1*InflowRate},
         batch_size=1,
         integral_batch_size=cfg.batch_size.integral_continuity,                                    
-        #lambda_weighting={"normal_dot_vel": 0.1*(1-0.01*RadiusThreshold)},
         lambda_weighting={"normal_dot_vel": 0.1},
         )                      
     domain.add_constraint(integral_continuity, "Integral_Inlet") 
@@ -289,8 +288,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
             outvar={"normal_dot_vel": flow_rate_},              
             batch_size=1,
             integral_batch_size=cfg.batch_size.integral_continuity, 
-            #lambda_weighting={"normal_dot_vel": 0.1*(1-0.01*RadiusThreshold)},
-            lambda_weighting={"normal_dot_vel": 0.1}, 
+            lambda_weighting={"normal_dot_vel": 0.1},
         )                                                                                                                                                          
         domain.add_constraint(integral_continuity, "Integral_%s"%os.path.splitext(os.path.basename(outlet_path[i]))[0])
 

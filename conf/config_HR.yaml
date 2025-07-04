@@ -37,24 +37,24 @@ scheduler:
 
 
 training:
-  rec_results_freq: 100
-  rec_constraint_freq: 100
+  rec_results_freq: 1000
+  rec_constraint_freq: 1000
   rec_monitor_freq: 100
   rec_inference_freq: 1000
   max_steps : 2500000
 
 stop_criterion:
   metric: "InteriorVelocity"
-  min_delta: 0.5
-  patience: 100000
-  mode: "max"
-  freq: 1000
+  min_delta: 0.05
+  patience: 1000
+  mode: "min"
+  freq: 100
   strict: true
 
 batch_size:
   inlet: 100
   outlet: 100
-  no_slip: 1000
-  interior: 3000
+  no_slip: 25000
+  interior: 50000
   integral_continuity: 100
   data: 1024

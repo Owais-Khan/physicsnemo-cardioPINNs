@@ -52,7 +52,7 @@ from physicsnemo.sym.domain.inferencer import PointVTKInferencer
 from physicsnemo.sym.models.moving_time_window import MovingTimeWindowArch
 
 
-@physicsnemo.sym.main(config_path="conf", config_name="config")
+@physicsnemo.sym.main(config_path="conf", config_name="config_HR")
 def run(cfg: PhysicsNeMoConfig) -> None:
 
     #------------------ Input Variables ------------------------------------------------
@@ -60,7 +60,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     rho=1.06 # density in CGS units.
     cgsFactor=0.1 #multiply mesh/data by this factor to convert to cgs. Keep 1 by default.
     CenterInput=True #Normalize the input to enhance convergence
-    RadiusThreshold=90. #What percentange of lumen to sample along centerline. 90% = sample 90% of lumen 
+    RadiusThreshold=20. #What percentange of lumen to sample along centerline. 90% = sample 90% of lumen 
 
     VelocityArrayName="Velocity" #Array name of the velocity in data files
 
@@ -176,12 +176,14 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     print ("Inlet Centroid: (%.05f, %.05f, %.05f)"%(inlet_centroid[0],inlet_centroid[1],inlet_centroid[2]))
     print ("Inlet Normal:   (%.05f, %.05f, %.05f)"%(inlet_normal_vector[0],inlet_normal_vector[1],inlet_normal_vector[2]))
     print ("Inlet Area:     %.05f"%inlet_area)
+    print ("Inlet Radius:   %.05f"%inlet_radius)
     for i in range(len(outlet_centroid)):
             print ("\n")
             outlet_filename_=os.path.basename(outlet_path[i])
             print ("%s Centroid: (%.05f, %.05f, %.05f)"%(outlet_filename_,outlet_centroid[i][0],outlet_centroid[i][1],outlet_centroid[i][2]))
             print ("%s Normal:   (%.05f, %.05f, %.05f)"%(outlet_filename_,outlet_normal_vectors[i][0],outlet_normal_vectors[i][1],outlet_normal_vectors[i][2]))
             print ("%s Area:     %.05f"%(outlet_filename_,outlet_area[i]))
+            print ("%s Radius:   %.05f"%(outlet_filename_,outlet_radius[i]))
 
     #-------------------- Load and Normalize Velocity Data -----------------------------------
     DistanceAwayFromWall=inlet_radius-(RadiusThreshold/100.)*inlet_radius
@@ -192,7 +194,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     #if RadiusThreshold<50:
     VelocityPeak=torch.quantile(torch.sqrt(torch.square(torch.tensor(velData_outvar["u"]))  + torch.square(torch.tensor(velData_outvar["v"])) + torch.square(torch.tensor(velData_outvar["w"]))),0.5)
     #InflowRate=(VelocityPeak/2.)*inlet_area
-    InflowRate=0.8*VelocityPeak/(-0.01*RadiusThreshold+2)*inlet_area
+    InflowRate=0.8*VelocityPeak/(-0.01*RadiusThreshold+2)*inlet_area #Estimate inlet flow rate
 
     #InflowRate=100#EstimateInflowRate(inlet_mesh_vtk,inlet_centroid,inlet_normal_vector,velData_invar,velData_outvar,inlet_radius,RadiusThreshold)
     if InflowRate==0: raise Exception("Inflow Rate Could Not be Estimated. Exiting...")
@@ -200,7 +202,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     print ("--- Distance to Sample Points Away from the Wall:       %.05f"%DistanceAwayFromWall)
     print ("--- Number of Sampled Points Away from the Wall:        %d"%NumberOfVelPoints)
     print ("--- Mean Velocity Magnitude of Sampled Points:          %.05f"%VelocityMean)
-    print ("--- 95th Perc. Velocity Magnitude of Sampled Points:    %.05f"%VelocityPeak)
+    print ("--- Median Velocity Magnitude of Sampled Points:    %.05f"%VelocityPeak)
     print ("--- Estimated InflowRate is:                            %.05f"%InflowRate)
 
     #Save the sampled file
@@ -245,7 +247,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
     print ("\n------ Assigned Flow Rate at %s: %.05f"%(os.path.splitext(os.path.basename(inlet_path))[0],InflowRate))
     print ("--------- Peak Velocity is:        %.05f"%PeakInletVel)
     print ("--------- Peak Reynolds # is:      %.05f"%((rho*(PeakInletVel*0.5)*(2*inlet_radius))/nu))
-    """u, v, w = circular_parabola(
+    u, v, w = circular_parabola(
         Symbol("x"),
         Symbol("y"),
         Symbol("z"),
@@ -261,7 +263,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         batch_size=cfg.batch_size.inlet,
         #lambda_weighting={"u":1-0.01*RadiusThreshold, "v":1-0.01*RadiusThreshold, "w":1-0.01*RadiusThreshold}
     )
-    domain.add_constraint(inlet, "Dirichlet_Inlet")"""
+    domain.add_constraint(inlet, "Dirichlet_Inlet")
 
 
     print ("\n--- Creating Integral Boundary Condition at Inlet...")
@@ -273,7 +275,6 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         outvar={"normal_dot_vel": -1*InflowRate},
         batch_size=1,
         integral_batch_size=cfg.batch_size.integral_continuity,                                    
-        #lambda_weighting={"normal_dot_vel": 0.1*(1-0.01*RadiusThreshold)},
         lambda_weighting={"normal_dot_vel": 0.1},
         )                      
     domain.add_constraint(integral_continuity, "Integral_Inlet") 
@@ -289,8 +290,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
             outvar={"normal_dot_vel": flow_rate_},              
             batch_size=1,
             integral_batch_size=cfg.batch_size.integral_continuity, 
-            #lambda_weighting={"normal_dot_vel": 0.1*(1-0.01*RadiusThreshold)},
-            lambda_weighting={"normal_dot_vel": 0.1}, 
+            lambda_weighting={"normal_dot_vel": 0.1},
         )                                                                                                                                                          
         domain.add_constraint(integral_continuity, "Integral_%s"%os.path.splitext(os.path.basename(outlet_path[i]))[0])
 
@@ -309,6 +309,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
             "momentum_y": Symbol("sdf"),
             "momentum_z": Symbol("sdf"),
         },
+        batch_per_epoch=5000,
         )            
     domain.add_constraint(interior, name="Interior_"+VelocityFileName)
 
@@ -320,6 +321,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         geometry=noslip_mesh,
         outvar={"u": 0, "v": 0, "w": 0},
         batch_size=cfg.batch_size.no_slip,
+        batch_per_epoch=5000,
         )
     domain.add_constraint(no_slip, name="NoSlip_"+VelocityFileName)
 
@@ -377,9 +379,9 @@ def run(cfg: PhysicsNeMoConfig) -> None:
 
     # monitors for the interior domain 
     global_monitor = PointwiseMonitor(
-            interior_mesh.sample_interior(100),                                                                                                                                                                                 
+            interior_mesh.sample_interior(100),                                                                                                                                                            
             output_names=["u", "v", "w", "p"],
-            metrics={"InteriorVelocity": lambda var: torch.mean(torch.sqrt( torch.square(var["u"]) + torch.square(var["v"]) + torch.square(var["w"])))},                                                                       
+            metrics={"InteriorVelocity": lambda var: torch.mean(torch.sqrt( torch.square(var["u"]) + torch.square(var["v"]) + torch.square(var["w"])))}, 
             nodes=nodes,     
         requires_grad=True,                                                                                                                                                                                                                   
     )                                                                                                                                                                                                                                         
