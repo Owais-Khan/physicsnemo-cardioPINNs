@@ -23,38 +23,25 @@ defaults :
   - loss: lr_annealing
   - _self_
 
-arch:
-    fully_connected:
-        layer_size: 128
-        nr_layers: 4
 
 optimizer: 
   lr: 1e-2
 
 scheduler:
   decay_rate: 0.95
-  decay_steps: 250000
-
+  decay_steps: 500
 
 training:
-  rec_results_freq: 1000
-  rec_constraint_freq: 1000
+  rec_results_freq: 100
+  rec_constraint_freq: 100
   rec_monitor_freq: 100
-  rec_inference_freq: 1000
-  max_steps : 2500000
-
-stop_criterion:
-  metric: "InteriorVelocity"
-  min_delta: 0.05
-  patience: 1000
-  mode: "min"
-  freq: 100
-  strict: true
+  rec_inference_freq: 100
+  max_steps : 50000
 
 batch_size:
-  inlet: 100
-  outlet: 100
-  no_slip: 25000
-  interior: 50000
-  integral_continuity: 100
+  inlet: 250
+  outlet: 250
+  no_slip: 2000
+  interior: 6000
+  integral_continuity: 250
   data: 1024

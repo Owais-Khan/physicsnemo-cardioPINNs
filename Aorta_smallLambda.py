@@ -273,7 +273,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         outvar={"normal_dot_vel": -1*InflowRate},
         batch_size=1,
         integral_batch_size=cfg.batch_size.integral_continuity,                                    
-        lambda_weighting={"normal_dot_vel": 0.1},
+        lambda_weighting={"normal_dot_vel": 0.01},
         )                      
     domain.add_constraint(integral_continuity, "Integral_Inlet") 
                                                                                                                                                                                                                                               
@@ -288,7 +288,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
             outvar={"normal_dot_vel": flow_rate_},              
             batch_size=1,
             integral_batch_size=cfg.batch_size.integral_continuity, 
-            lambda_weighting={"normal_dot_vel": 0.1},
+            lambda_weighting={"normal_dot_vel": 0.01},
         )                                                                                                                                                          
         domain.add_constraint(integral_continuity, "Integral_%s"%os.path.splitext(os.path.basename(outlet_path[i]))[0])
 
@@ -340,7 +340,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         outvar=velData_outvar,                                                                                                         
         batch_size=min(NumberOfVelPoints,cfg.batch_size.data),
         )                                                                                                                                             
-    #domain.add_constraint(data, "DataConstraints_"+VelocityFileName) 
+    domain.add_constraint(data, "DataConstraints_"+VelocityFileName) 
 
 
 #----------------------------------- Add Monitors to Output ------------------------------

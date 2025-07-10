@@ -54,7 +54,7 @@ from physicsnemo.sym.domain.inferencer import PointVTKInferencer
 from physicsnemo.sym.models.moving_time_window import MovingTimeWindowArch
 
 
-@physicsnemo.sym.main(config_path="conf", config_name="config_HR")
+@physicsnemo.sym.main(config_path="conf", config_name="config_adaptiveActivation")
 def run(cfg: PhysicsNeMoConfig) -> None:
 
     #------------------ Input Variables ------------------------------------------------
@@ -340,7 +340,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         outvar=velData_outvar,                                                                                                         
         batch_size=min(NumberOfVelPoints,cfg.batch_size.data),
         )                                                                                                                                             
-    #domain.add_constraint(data, "DataConstraints_"+VelocityFileName) 
+    domain.add_constraint(data, "DataConstraints_"+VelocityFileName) 
 
 
 #----------------------------------- Add Monitors to Output ------------------------------

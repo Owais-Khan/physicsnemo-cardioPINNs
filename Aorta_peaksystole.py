@@ -340,7 +340,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         outvar=velData_outvar,                                                                                                         
         batch_size=min(NumberOfVelPoints,cfg.batch_size.data),
         )                                                                                                                                             
-    #domain.add_constraint(data, "DataConstraints_"+VelocityFileName) 
+    domain.add_constraint(data, "DataConstraints_"+VelocityFileName) 
 
 
 #----------------------------------- Add Monitors to Output ------------------------------
@@ -456,5 +456,5 @@ if __name__ == "__main__":
     else: print ("Number of Velocity Files: %d"%len(velocity_files))
 
     #for i in range(0,len(velocity_files)):
-    VelocityFilePath=velocity_files[0]
+    VelocityFilePath=velocity_files[8]
     run()

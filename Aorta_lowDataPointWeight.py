@@ -339,8 +339,9 @@ def run(cfg: PhysicsNeMoConfig) -> None:
         invar=velData_invar,                                                                                                         
         outvar=velData_outvar,                                                                                                         
         batch_size=min(NumberOfVelPoints,cfg.batch_size.data),
+        lambda_weighting={"u":0.1, "v":0.1, "w":0.1}
         )                                                                                                                                             
-    #domain.add_constraint(data, "DataConstraints_"+VelocityFileName) 
+    domain.add_constraint(data, "DataConstraints_"+VelocityFileName) 
 
 
 #----------------------------------- Add Monitors to Output ------------------------------
