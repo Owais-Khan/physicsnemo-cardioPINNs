@@ -25,7 +25,7 @@ defaults :
 
 arch:
     fully_connected:
-        layer_size: 256
+        layer_size: 128
         nr_layers: 4
 
 optimizer: 
@@ -33,7 +33,7 @@ optimizer:
 
 scheduler:
   decay_rate: 0.913
-  decay_steps: 2000
+  decay_steps: 1000
 
 training:
   rec_results_freq: 100
@@ -43,9 +43,9 @@ training:
   max_steps : 50000
 
 batch_size:
-  inlet: 750
-  outlet: 750
-  no_slip: 15000
-  interior: 15000
-  integral_continuity: 750
-  data: 1024
+  inlet: 100
+  outlet: 100
+  no_slip: 1000
+  interior: 1000
+  integral_continuity: 100
+  data: 100
