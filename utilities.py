@@ -12,232 +12,298 @@ from sympy import Symbol, sqrt, Max
 
 # inlet velocity profile
 def circular_parabola(x, y, z, center, normal, radius, max_vel):
-    centered_x = x - center[0]
-    centered_y = y - center[1]
-    centered_z = z - center[2]
-    distance = sqrt(centered_x**2 + centered_y**2 + centered_z**2)
-    parabola = max_vel * Max((1 - (distance / radius) ** 2), 0)
-    return normal[0] * parabola, normal[1] * parabola, normal[2] * parabola
+	centered_x = x - center[0]
+	centered_y = y - center[1]
+	centered_z = z - center[2]
+	distance = sqrt(centered_x**2 + centered_y**2 + centered_z**2)
+	parabola = max_vel * Max((1 - (distance / radius) ** 2), 0)
+	return normal[0] * parabola, normal[1] * parabola, normal[2] * parabola
 
 
 # normalize meshes
 def normalize_mesh(mesh, center, scale):
-    mesh = mesh.translate([-c for c in center])
-    mesh = mesh.scale(scale)
-    return mesh
+	mesh = mesh.translate([-c for c in center])
+	mesh = mesh.scale(scale)
+	return mesh
 
 def normalize_mesh_vtk(mesh,center,scale):
-    for i in range(mesh.GetNumberOfPoints()):
-        point_=mesh.GetPoints().GetPoint(i)
-        pointnewX_=(point_[0]-center[0])*scale
-        pointnewY_=(point_[1]-center[1])*scale
-        pointnewZ_=(point_[2]-center[2])*scale
-        pointNew_=(pointnewX_,pointnewY_,pointnewZ_)
-        mesh.GetPoints().SetPoint(i,pointNew_)
-        mesh.Modified()
-    return mesh
+	for i in range(mesh.GetNumberOfPoints()):
+		point_=mesh.GetPoints().GetPoint(i)
+		pointnewX_=(point_[0]-center[0])*scale
+		pointnewY_=(point_[1]-center[1])*scale
+		pointnewZ_=(point_[2]-center[2])*scale
+		pointNew_=(pointnewX_,pointnewY_,pointnewZ_)
+		mesh.GetPoints().SetPoint(i,pointNew_)
+		mesh.Modified()
+	return mesh
 
 def reverse_normalize_mesh_vtk(mesh,center,scale):
-    for i in range(mesh.GetNumberOfPoints()):
-        point_=mesh.GetPoints().GetPoint(i)
-        pointnewX_=(point_[0])/scale+center[0]
-        pointnewY_=(point_[1])/scale+center[1]
-        pointnewZ_=(point_[2])/scale+center[2]
-        pointNew_=(pointnewX_,pointnewY_,pointnewZ_)
-        mesh.GetPoints().SetPoint(i,pointNew_)
-        mesh.Modified()
-    return mesh
+	for i in range(mesh.GetNumberOfPoints()):
+		point_=mesh.GetPoints().GetPoint(i)
+		pointnewX_=(point_[0])/scale+center[0]
+		pointnewY_=(point_[1])/scale+center[1]
+		pointnewZ_=(point_[2])/scale+center[2]
+		pointNew_=(pointnewX_,pointnewY_,pointnewZ_)
+		mesh.GetPoints().SetPoint(i,pointNew_)
+		mesh.Modified()
+	return mesh
 
 def GetBoundingBox(mesh):
-    x=np.zeros(mesh.GetNumberOfPoints())
-    y=np.zeros(mesh.GetNumberOfPoints())
-    z=np.zeros(mesh.GetNumberOfPoints())
-    for i in range(mesh.GetNumberOfPoints()):
-        point_=mesh.GetPoints().GetPoint(i)
-        x[i]=point_[0]
-        y[i]=point_[1]
-        z[i]=point_[2]
-    return (np.min(x),np.max(x),np.min(y),np.max(y),np.min(z),np.max(z))
-    
+	x=np.zeros(mesh.GetNumberOfPoints())
+	y=np.zeros(mesh.GetNumberOfPoints())
+	z=np.zeros(mesh.GetNumberOfPoints())
+	for i in range(mesh.GetNumberOfPoints()):
+		point_=mesh.GetPoints().GetPoint(i)
+		x[i]=point_[0]
+		y[i]=point_[1]
+		z[i]=point_[2]
+	return (np.min(x),np.max(x),np.min(y),np.max(y),np.min(z),np.max(z))
+	
 
 def ProjectData(InputMesh=None,SourceMesh=None): #Project data from SourceMesh to InputMesh
-    ProjectedSurface=vtk.vtkProbeFilter()
-    ProjectedSurface.SetInputData(InputMesh)
-    ProjectedSurface.SetSourceData(SourceMesh)
-    ProjectedSurface.Update()
-    return ProjectedSurface.GetOutput()
+	ProjectedSurface=vtk.vtkProbeFilter()
+	ProjectedSurface.SetInputData(InputMesh)
+	ProjectedSurface.SetSourceData(SourceMesh)
+	ProjectedSurface.Update()
+	return ProjectedSurface.GetOutput()
 
 # normalize invars
 def normalize_invar(invar, center, scale, dims=2):
-    invar["x"] -= center[0]
-    invar["y"] -= center[1]
-    invar["z"] -= center[2]
-    invar["x"] *= scale
-    invar["y"] *= scale
-    invar["z"] *= scale
-    if "area" in invar.keys():
-        invar["area"] *= scale**dims
-    return invar
+	invar["x"] -= center[0]
+	invar["y"] -= center[1]
+	invar["z"] -= center[2]
+	invar["x"] *= scale
+	invar["y"] *= scale
+	invar["z"] *= scale
+	if "area" in invar.keys():
+		invar["area"] *= scale**dims
+	return invar
 
 def TranslateScalePolyData(Surface,TranslationVector=(0,0,0),ScalingVector=(1,1,1)):
    
-    #Create a Translation Function
-    translation=vtk.vtkTransform()
-    translation.Translate(TranslationVector)
-    
-    #Apply the Translation to the Surface    
-    transformed_surface=vtk.vtkTransformPolyDataFilter()
-    transformed_surface.SetInputData(Surface)
-    transformed_surface.SetTransform(translation)
-    transformed_surface.Update()
-    transformed_surface=transformed_surface.GetOutput()
+	#Create a Translation Function
+	translation=vtk.vtkTransform()
+	translation.Translate(TranslationVector)
+	
+	#Apply the Translation to the Surface	 
+	transformed_surface=vtk.vtkTransformPolyDataFilter()
+	transformed_surface.SetInputData(Surface)
+	transformed_surface.SetTransform(translation)
+	transformed_surface.Update()
+	transformed_surface=transformed_surface.GetOutput()
 
-    #Scale the surface
-    scaled_surface=ScalePolyData(transformed_surface,ScalingVector)
-    
-    return scaled_surface
+	#Scale the surface
+	scaled_surface=ScalePolyData(transformed_surface,ScalingVector)
+	
+	return scaled_surface
 
 def ScalePolyData(Surface,ScalingArray):
-    #Create a Translation Function
-    scaling=vtk.vtkTransform()
-    scaling.Scale(ScalingArray)
-    #Apply the Translation to the Surface
-    scaled_surface=vtk.vtkTransformPolyDataFilter()
-    scaled_surface.SetInputData(Surface)
-    scaled_surface.SetTransform(scaling)
-    scaled_surface.Update()
-    scaled_surface=scaled_surface.GetOutput()
-    return scaled_surface
+	#Create a Translation Function
+	scaling=vtk.vtkTransform()
+	scaling.Scale(ScalingArray)
+	#Apply the Translation to the Surface
+	scaled_surface=vtk.vtkTransformPolyDataFilter()
+	scaled_surface.SetInputData(Surface)
+	scaled_surface.SetTransform(scaling)
+	scaled_surface.Update()
+	scaled_surface=scaled_surface.GetOutput()
+	return scaled_surface
 
 
 #Get the distance from the surface to the interior points
 def GetDistanceFromWall(Volume,Surface=None): 
-    if Surface is None: Surface=ExtractSurface(Volume)
+	if Surface is None: Surface=ExtractSurface(Volume)
    
-    #Signed Distance Array
-    signedDistance=np.zeros(Volume.GetNumberOfPoints())
+	#Signed Distance Array
+	signedDistance=np.zeros(Volume.GetNumberOfPoints())
 
-    #Create Distance Function
-    implicitPolyDataDistance = vtk.vtkImplicitPolyDataDistance()
-    implicitPolyDataDistance.SetInput(Surface)
+	#Create Distance Function
+	implicitPolyDataDistance = vtk.vtkImplicitPolyDataDistance()
+	implicitPolyDataDistance.SetInput(Surface)
 
-    # Evaluate the signed distance function at all of the grid points
-    for pointId in range(Volume.GetNumberOfPoints()):
-        signedDistance_ = implicitPolyDataDistance.EvaluateFunction(Volume.GetPoint(pointId))
-        signedDistance[pointId]=np.absolute(signedDistance_)
+	# Evaluate the signed distance function at all of the grid points
+	for pointId in range(Volume.GetNumberOfPoints()):
+		signedDistance_ = implicitPolyDataDistance.EvaluateFunction(Volume.GetPoint(pointId))
+		signedDistance[pointId]=np.absolute(signedDistance_)
 
-    #Note:  -ve distance ==> inside the volume
-    #       +ve distance ==> outside the volume
-    #        0 distance  ==> on the surface
+	#Note:	-ve distance ==> inside the volume
+	#		+ve distance ==> outside the volume
+	#		 0 distance  ==> on the surface
 
-    return signedDistance
+	return signedDistance
 
 
 #Get the data within a certain distance
 def GetVelocityAwayFromWall(Volume,DistanceThreshold,ArrayName):
-    #Create an array to store velocity
-    u=[]; v=[]; w=[]; x=[]; y=[]; z=[]; 
-    idx=np.zeros(Volume.GetNumberOfPoints())
+	#Create an array to store velocity
+	u=[]; v=[]; w=[]; x=[]; y=[]; z=[]; 
+	idx=np.zeros(Volume.GetNumberOfPoints())
 
-    Velocity=vtk_to_numpy(Volume.GetPointData().GetArray(ArrayName))
-    for i in range(Volume.GetNumberOfPoints()):
-        distance_=Volume.GetPointData().GetArray("signedDistanceFromWall").GetValue(i)
-        pointId_ =Volume.GetPoint(i)
-        velocity_=Velocity[i]
-        #Store the data
-        if distance_>DistanceThreshold:
-            x.append(pointId_[0])
-            y.append(pointId_[1])
-            z.append(pointId_[2])
-            u.append(velocity_[0])
-            v.append(velocity_[1])
-            w.append(velocity_[2])
-            idx[i]=1
-    x=np.array(x); y=np.array(y); z=np.array(z)
-    u=np.array(u); v=np.array(v); w=np.array(w)
+	Velocity=vtk_to_numpy(Volume.GetPointData().GetArray(ArrayName))
+	for i in range(Volume.GetNumberOfPoints()):
+		distance_=Volume.GetPointData().GetArray("signedDistanceFromWall").GetValue(i)
+		pointId_ =Volume.GetPoint(i)
+		velocity_=Velocity[i]
+		#Store the data
+		if distance_>DistanceThreshold:
+			x.append(pointId_[0])
+			y.append(pointId_[1])
+			z.append(pointId_[2])
+			u.append(velocity_[0])
+			v.append(velocity_[1])
+			w.append(velocity_[2])
+			idx[i]=1
+	x=np.array(x); y=np.array(y); z=np.array(z)
+	u=np.array(u); v=np.array(v); w=np.array(w)
 
-    return x,y,z,u,v,w,idx
-                
+	return x,y,z,u,v,w,idx
+				
 
 def CardioPINNsGetVelocityData(velocity_path,VelocityArrayName,DistanceThreshold): #swithc to DistanceThresholdPercentile to automatically detect distance away from wall
-    #NOTE will need to normalize for future since velocity data is already normalized
+	#NOTE will need to normalize for future since velocity data is already normalized
 
-    #Read the Velocity Data
-    if type(velocity_path) is str: VelocityData=ReadVTUFile(velocity_path)
-    else: VelocityData=velocity_path
+	#Read the Velocity Data
+	if type(velocity_path) is str: VelocityData=ReadVTUFile(velocity_path)
+	else: VelocityData=velocity_path
 
-    #Compute Distance Away from The Wall
-    DistanceFromWall=GetDistanceFromWall(VelocityData)
-    DistanceFromWallNonZero=DistanceFromWall[DistanceFromWall!=0]
+	#Compute Distance Away from The Wall
+	DistanceFromWall=GetDistanceFromWall(VelocityData)
+	DistanceFromWallNonZero=DistanceFromWall[DistanceFromWall!=0]
 
-    #Add the Distance Array to VelocityFile
-    VelocityData=PolyDataAddPointArray(VelocityData,DistanceFromWall,"signedDistanceFromWall")
+	#Add the Distance Array to VelocityFile
+	VelocityData=PolyDataAddPointArray(VelocityData,DistanceFromWall,"signedDistanceFromWall")
 
-    #Distance Away from the Wall
-    #DistanceThreshold=np.percentile(DistanceFromWallNonZero,DistanceThresholdPercentile)
+	#Distance Away from the Wall
+	#DistanceThreshold=np.percentile(DistanceFromWallNonZero,DistanceThresholdPercentile)
 
-    #Get Velocity Away From the Wall
-    x,y,z,u,v,w,idx =GetVelocityAwayFromWall(VelocityData,DistanceThreshold,VelocityArrayName)
+	#Get Velocity Away From the Wall
+	x,y,z,u,v,w,idx =GetVelocityAwayFromWall(VelocityData,DistanceThreshold,VelocityArrayName)
 
 
-    #Add Locations were velocity data is sampled
-    VelocityData=PolyDataAddPointArray(VelocityData,idx,"SampledData")
+	#Add Locations were velocity data is sampled
+	VelocityData=PolyDataAddPointArray(VelocityData,idx,"SampledData")
 
-    #Create a Dictionary to Assign As Input variables Constrains in PhysicsNemo
-    data_invar={}
-    data_invar["x"]=np.array([[x[i]] for i in range(len(x))])
-    data_invar["y"]=np.array([[y[i]] for i in range(len(x))])
-    data_invar["z"]=np.array([[z[i]] for i in range(len(x))])
-    data_invar_numpy = {key: value for key, value in data_invar.items() if key in ["x", "y", "z"]}
+	#Create a Dictionary to Assign As Input variables Constrains in PhysicsNemo
+	data_invar={}
+	data_invar["x"]=np.array([[x[i]] for i in range(len(x))])
+	data_invar["y"]=np.array([[y[i]] for i in range(len(x))])
+	data_invar["z"]=np.array([[z[i]] for i in range(len(x))])
+	data_invar_numpy = {key: value for key, value in data_invar.items() if key in ["x", "y", "z"]}
 
-    #Create a Dictionary to Assign As Output variables as Constrains in PhysicsNemo
-    data_outvar={}
-    data_outvar["u"]=np.array([[u[i]] for i in range(len(u))])
-    data_outvar["v"]=np.array([[v[i]] for i in range(len(u))])
-    data_outvar["w"]=np.array([[w[i]] for i in range(len(u))])
-    data_outvar_numpy = {key: value for key, value in data_outvar.items() if key in ["u", "v", "w","p"]}
+	#Create a Dictionary to Assign As Output variables as Constrains in PhysicsNemo
+	data_outvar={}
+	data_outvar["u"]=np.array([[u[i]] for i in range(len(u))])
+	data_outvar["v"]=np.array([[v[i]] for i in range(len(u))])
+	data_outvar["w"]=np.array([[w[i]] for i in range(len(u))])
+	data_outvar_numpy = {key: value for key, value in data_outvar.items() if key in ["u", "v", "w","p"]}
 
-    data_outvar_numpy["continuity"] = np.zeros_like(data_outvar_numpy["u"])
-    data_outvar_numpy["momentum_x"] = np.zeros_like(data_outvar_numpy["u"])
-    data_outvar_numpy["momentum_y"] = np.zeros_like(data_outvar_numpy["u"])
-    data_outvar_numpy["momentum_z"] = np.zeros_like(data_outvar_numpy["u"])
+	data_outvar_numpy["continuity"] = np.zeros_like(data_outvar_numpy["u"])
+	data_outvar_numpy["momentum_x"] = np.zeros_like(data_outvar_numpy["u"])
+	data_outvar_numpy["momentum_y"] = np.zeros_like(data_outvar_numpy["u"])
+	data_outvar_numpy["momentum_z"] = np.zeros_like(data_outvar_numpy["u"])
+ 
+	return data_invar_numpy, data_outvar_numpy, VelocityData
 
-    return data_invar_numpy, data_outvar_numpy, VelocityData
+def CardioPINNsGetVelocityDataFromTextFile(velocity_path,center,scale,max_samples):
+	infile=open(velocity_path,'r')
+	infile.readline()
+	x=[]; y=[]; z=[]; u=[]; v=[]; w=[]
+	for line in infile:
+		LINE=line.split()
+		x.append(float(LINE[0])) 
+		y.append(float(LINE[1])) 
+		z.append(float(LINE[2])) 
+		u.append(float(LINE[3])) 
+		v.append(float(LINE[4])) 
+		w.append(float(LINE[5]))
+	infile.close()
+	for i in range(len(x)):
+		x[i]=(x[i]-center[0])*scale
+		y[i]=(y[i]-center[1])*scale
+		z[i]=(z[i]-center[2])*scale
+		u[i]=(u[i])
+		v[i]=(v[i])
+		w[i]=(w[i])
+
+	#Generate upto max samples due to memory issues
+	x_new=[];y_new=[];z_new=[];u_new=[];v_new=[];w_new=[]
+	if len(x)>max_samples:
+		rng = np.random.default_rng()
+		unique_numbers = rng.choice(a=len(x), size=max_samples, replace=False)
+		unique_numbers_sorted=sorted(unique_numbers)
+		for value in unique_numbers_sorted:
+			x_new.append(x[value])
+			y_new.append(y[value])
+			z_new.append(z[value])
+			u_new.append(u[value])
+			v_new.append(v[value])
+			w_new.append(w[value])
+	else:
+		x_new=x
+		y_new=y
+		z_new=z
+		u_new=u
+		v_new=v
+		w_new=w
+
+	#Create a Dictionary to Assign As Input variables Constrains in PhysicsNemo
+	data_invar={}
+	data_invar["x"]=np.array([[x_new[i]] for i in range(len(x_new))])
+	data_invar["y"]=np.array([[y_new[i]] for i in range(len(x_new))])
+	data_invar["z"]=np.array([[z_new[i]] for i in range(len(x_new))])
+	data_invar_numpy = {key: value for key, value in data_invar.items() if key in ["x", "y", "z"]}
+
+	#Create a Dictionary to Assign As Output variables as Constrains in PhysicsNemo
+	data_outvar={}
+	data_outvar["u"]=np.array([[u_new[i]] for i in range(len(u_new))])
+	data_outvar["v"]=np.array([[v_new[i]] for i in range(len(u_new))])
+	data_outvar["w"]=np.array([[w_new[i]] for i in range(len(u_new))])
+	data_outvar_numpy = {key: value for key, value in data_outvar.items() if key in ["u", "v", "w","p"]}
+
+	data_outvar_numpy["continuity"] = np.zeros_like(data_outvar_numpy["u"])
+	data_outvar_numpy["momentum_x"] = np.zeros_like(data_outvar_numpy["u"])
+	data_outvar_numpy["momentum_y"] = np.zeros_like(data_outvar_numpy["u"])
+	data_outvar_numpy["momentum_z"] = np.zeros_like(data_outvar_numpy["u"]); del x,y,z,u,v,w
+
+	return data_invar_numpy, data_outvar_numpy
+
+
+
 
 def SinglePointVTK(x,y,z):
-    # Create a single point with a normal and scalar
-    onePts = vtk.vtkPoints()
-    onePts.SetNumberOfPoints(1)
-    onePts.SetPoint(0,(x,y,z))
+	# Create a single point with a normal and scalar
+	onePts = vtk.vtkPoints()
+	onePts.SetNumberOfPoints(1)
+	onePts.SetPoint(0,(x,y,z))
 
-    oneScalars = vtk.vtkFloatArray()
-    oneScalars.SetNumberOfTuples(1)
-    oneScalars.SetTuple1(0,5.0)
-    oneScalars.SetName("scalarPt")
+	oneScalars = vtk.vtkFloatArray()
+	oneScalars.SetNumberOfTuples(1)
+	oneScalars.SetTuple1(0,5.0)
+	oneScalars.SetName("scalarPt")
 
-    oneNormals = vtk.vtkFloatArray()
-    oneNormals.SetNumberOfComponents(3)
-    oneNormals.SetNumberOfTuples(1)
-    oneNormals.SetTuple3(0,1,1,1)
-    oneNormals.SetName("normalPt")
+	oneNormals = vtk.vtkFloatArray()
+	oneNormals.SetNumberOfComponents(3)
+	oneNormals.SetNumberOfTuples(1)
+	oneNormals.SetTuple3(0,1,1,1)
+	oneNormals.SetName("normalPt")
 
-    oneData = vtk.vtkPolyData()
-    oneData.SetPoints(onePts)
-    oneData.GetPointData().SetScalars(oneScalars)
-    oneData.GetPointData().SetNormals(oneNormals)
-    
-    return oneData
+	oneData = vtk.vtkPolyData()
+	oneData.SetPoints(onePts)
+	oneData.GetPointData().SetScalars(oneScalars)
+	oneData.GetPointData().SetNormals(oneNormals)
+	
+	return oneData
 
 def ProbeVelocityData(x,y,z,Data,ArrayName="Velocity"):
-    Point=SinglePointVTK(x,y,z)
-    Probe = vtk.vtkProbeFilter()
-    Probe.SetInputData(Point)
-    Probe.SetSourceData(Data)
-    Probe.Update()
-    u_=Probe.GetOutput().GetPointData().GetArray(ArrayName).GetValue(0)
-    v_=Probe.GetOutput().GetPointData().GetArray(ArrayName).GetValue(1)
-    w_=Probe.GetOutput().GetPointData().GetArray(ArrayName).GetValue(2)
-    return u_,v_,w_
+	Point=SinglePointVTK(x,y,z)
+	Probe = vtk.vtkProbeFilter()
+	Probe.SetInputData(Point)
+	Probe.SetSourceData(Data)
+	Probe.Update()
+	u_=Probe.GetOutput().GetPointData().GetArray(ArrayName).GetValue(0)
+	v_=Probe.GetOutput().GetPointData().GetArray(ArrayName).GetValue(1)
+	w_=Probe.GetOutput().GetPointData().GetArray(ArrayName).GetValue(2)
+	return u_,v_,w_
 
 ############ Input/Output ##################
 def ReadVTUFile(FileName):
@@ -247,11 +313,11 @@ def ReadVTUFile(FileName):
 	return reader.GetOutput()
 
 def ReadSTLFile(FileName):
-    reader = vtk.vtkSTLReader()
-    reader.SetFileName(FileName)
-    reader.Update()
-    return reader.GetOutput()
-    
+	reader = vtk.vtkSTLReader()
+	reader.SetFileName(FileName)
+	reader.Update()
+	return reader.GetOutput()
+	
 def ReadVTKFile(FileName):
 	reader = vtk.vtkStructuredPointsReader()
 	reader.SetFileName(FileName)
@@ -283,7 +349,7 @@ def WriteVTUFile(FileName,Data):
 	writer.SetFileName(FileName)
 	writer.SetInputData(Data)
 	writer.Update()
-        
+		
 def WriteVTPFile(FileName,Data):
 	writer=vtk.vtkXMLPolyDataWriter()
 	writer.SetFileName(FileName)
@@ -291,14 +357,14 @@ def WriteVTPFile(FileName,Data):
 	writer.Update()
 
 def WritePolyDataFile(FileName,Data):
-    writer=vtk.vtkPolyDataWriter()
-    writer.SetFileName(FileName)
-    writer.SetInputData(Data)
-    writer.Update()
+	writer=vtk.vtkPolyDataWriter()
+	writer.SetFileName(FileName)
+	writer.SetInputData(Data)
+	writer.Update()
 
 ############# Mesh Morphing Functions ###############
-        #Create a line from apex and centroid of the myocardium
-        
+		#Create a line from apex and centroid of the myocardium
+		
 def CreateLine(Point1,Point2,Length):
 	line0=np.array([Point1[0]-Point2[0],Point1[1]-Point2[1],Point1[2]-Point2[2]])
 	line1=-1*line0
@@ -312,7 +378,7 @@ def CreatePolyLine(Coords):
 	for i in range(len(Coords)): points.InsertNextPoint(Coords[i])
 
 	#Create a Polyline
-	polyLine = vtk.vtkPolyLine()     
+	polyLine = vtk.vtkPolyLine()	 
 	polyLine.GetPointIds().SetNumberOfIds(len(Coords))
 	for i in range(len(Coords)): polyLine.GetPointIds().SetId(i, i)
 
@@ -322,7 +388,7 @@ def CreatePolyLine(Coords):
 
 	# Create a polydata to store everything in
 	polyData = vtk.vtkPolyData()
-    
+	
 	# Add the points to the dataset
 	polyData.SetPoints(points)
 
@@ -336,10 +402,10 @@ def ClosestPoint(Point, Array):
 	return Array[np.argmin(dist_2)],np.argmin(dist_2),min(dist_2)
 
 def FurthestPoint(Point, Array):
-        dist_2 = np.sum((Array - Point)**2, axis=1)
-        return Array[np.argmax(dist_2)],np.argmax(dist_2)
+		dist_2 = np.sum((Array - Point)**2, axis=1)
+		return Array[np.argmax(dist_2)],np.argmax(dist_2)
 
-        
+		
 def CutPlane(Volume,Origin,Norm):
 	plane=vtk.vtkPlane()
 	plane.SetOrigin(Origin)
@@ -370,7 +436,7 @@ def CutLine(Slice,Point,Centroid,Norm1):
 	Line.SetCutFunction(plane_N3)
 	Line.SetInputData(Slice)
 	Line.Update()
-        
+		
 	#Separate the line into only one quarter (i.e. half the line)
 	Line1=vtk.vtkClipPolyData()
 	Line1.SetClipFunction(plane_N2)
@@ -403,7 +469,7 @@ def ExtractSurface(volume):
 	surface.SetInputData(volume)
 	surface.Update()
 	return surface.GetOutput()
-        
+		
 #Print the progress of the loop
 def PrintProgress(i,N,progress_old):
 	progress_=(int((float(i)/N*100+0.5)))
@@ -411,7 +477,7 @@ def PrintProgress(i,N,progress_old):
 	return progress_%10
 
 def TagOuterSurface(Surface):
-	#Create an OBB tree and cast Rays       
+	#Create an OBB tree and cast Rays		
 	obbTree = vtk.vtkOBBTree()
 	obbTree.SetDataSet(Surface)
 	obbTree.BuildLocator()
@@ -419,7 +485,7 @@ def TagOuterSurface(Surface):
 
 	#Create an array to store surface tags
 	Surface_tags=np.zeros(Surface.GetNumberOfPoints())
-       
+	   
 	#Get Centroid
 	Centroid=np.array(GetCentroid(Surface))
 
@@ -437,7 +503,7 @@ def TagOuterSurface(Surface):
 	Surface_tags_vtk.SetName("Tags")
 	Surface.GetPointData().AddArray(Surface_tags_vtk)
 	Surface.Modified()
-                
+				
 	return Surface
 
 #Smooth Surface
@@ -469,11 +535,11 @@ def PolyDataAddPointArray(Surface,Array,ArrayName):
 	return Surface
 
 def SurfaceAddCellArray(Surface,Array,ArrayName):
-        SurfaceArray=numpy_to_vtk(Array,deep=True)
-        SurfaceArray.SetName(ArrayName)
-        Surface.GetCellData().AddArray(SurfaceArray)
-        Surface.Modified()
-        return Surface
+		SurfaceArray=numpy_to_vtk(Array,deep=True)
+		SurfaceArray.SetName(ArrayName)
+		Surface.GetCellData().AddArray(SurfaceArray)
+		Surface.Modified()
+		return Surface
 
 
 def ProjectedPointOnLine(coord_,Centroid,Apex,Norm1):
@@ -486,14 +552,14 @@ def ProjectedPointOnLine(coord_,Centroid,Apex,Norm1):
 	return coord_ProjP_
 
 def SurfaceNormals(Surface,FeatureAngle=None):
-    normals = vtk.vtkPolyDataNormals()
-    normals.SetInputData(Surface)
-    if FeatureAngle is not None: normals.SetFeatureAngle(FeatureAngle)
-    normals.AutoOrientNormalsOn()
-    normals.UpdateInformation()
-    normals.Update()
-    Surface = normals.GetOutput()
-    return Surface
+	normals = vtk.vtkPolyDataNormals()
+	normals.SetInputData(Surface)
+	if FeatureAngle is not None: normals.SetFeatureAngle(FeatureAngle)
+	normals.AutoOrientNormalsOn()
+	normals.UpdateInformation()
+	normals.Update()
+	Surface = normals.GetOutput()
+	return Surface
 
 
 def ThresholdByUpper(Volume,arrayname,value):
@@ -505,41 +571,41 @@ def ThresholdByUpper(Volume,arrayname,value):
 	return Threshold.GetOutput()
 
 def ThresholdInBetween(Volume,arrayname,value1,value2):
-        Threshold=vtk.vtkThreshold()
-        Threshold.SetInputData(Volume)
-        Threshold.ThresholdBetween(value1,value2)
-        Threshold.SetInputArrayToProcess(0,0,0,vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS,arrayname)
-        Threshold.Update()
-        return Threshold.GetOutput()
+		Threshold=vtk.vtkThreshold()
+		Threshold.SetInputData(Volume)
+		Threshold.ThresholdBetween(value1,value2)
+		Threshold.SetInputArrayToProcess(0,0,0,vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS,arrayname)
+		Threshold.Update()
+		return Threshold.GetOutput()
 
 def ConvertPointsToLine(PointsArray):
-        # Create a vtkPoints object and store the points in it
-        Points = vtk.vtkPoints()
-        for Point_ in PointsArray:
-                Points.InsertNextPoint(Point_)
+		# Create a vtkPoints object and store the points in it
+		Points = vtk.vtkPoints()
+		for Point_ in PointsArray:
+				Points.InsertNextPoint(Point_)
 
-        #Create a Polyline
-        polyLine = vtk.vtkPolyLine()
-        polyLine.GetPointIds().SetNumberOfIds(len(PointsArray))
+		#Create a Polyline
+		polyLine = vtk.vtkPolyLine()
+		polyLine.GetPointIds().SetNumberOfIds(len(PointsArray))
 
-        for i in range(0, len(PointsArray)):
-                polyLine.GetPointIds().SetId(i, i)
+		for i in range(0, len(PointsArray)):
+				polyLine.GetPointIds().SetId(i, i)
 
 
-        # Create a cell array to store the lines in and add the lines to it
-        cells = vtk.vtkCellArray()
-        cells.InsertNextCell(polyLine)
+		# Create a cell array to store the lines in and add the lines to it
+		cells = vtk.vtkCellArray()
+		cells.InsertNextCell(polyLine)
 
-        # Create a polydata to store everything in
-        polyData = vtk.vtkPolyData()
+		# Create a polydata to store everything in
+		polyData = vtk.vtkPolyData()
 
-        # Add the points to the dataset
-        polyData.SetPoints(Points)
+		# Add the points to the dataset
+		polyData.SetPoints(Points)
 
-        # Add the lines to the dataset
-        polyData.SetLines(cells)
+		# Add the lines to the dataset
+		polyData.SetLines(cells)
 
-        return polyData
+		return polyData
 
 
 def Statistics(Volume,ArrayName,NormalizationValue=None):
@@ -547,11 +613,11 @@ def Statistics(Volume,ArrayName,NormalizationValue=None):
 
 	#Convert VTK array to numpy
 	Data_=vtk_to_numpy(Volume.GetPointData().GetArray(ArrayName))
-	statistics["Mean"]      =np.mean(Data_)
-	statistics["Stdev"]     =np.std(Data_)
+	statistics["Mean"]		=np.mean(Data_)
+	statistics["Stdev"]		=np.std(Data_)
 	statistics["75thPerct"] =np.percentile(Data_,75)
-	statistics["Median"]    =np.median(Data_)
-	statistics["IQR"]       =IQR(Data_)
+	statistics["Median"]	=np.median(Data_)
+	statistics["IQR"]		=IQR(Data_)
 	if NormalizationValue is None:
 		statistics["MeanNormalized"]=statistics["Mean"]/statistics["75thPerct"]
 		statistics["StdevNormalized"]=statistics["Stdev"]/statistics["75thPerct"]
@@ -559,9 +625,9 @@ def Statistics(Volume,ArrayName,NormalizationValue=None):
 		statistics["MeanNormalized"]=statistics["Mean"]/NormalizationValue
 		statistics["StdevNormalized"]=statistics["Stdev"]/NormalizationValue
 
-	statistics["Skewness"]   =SKEWNESS(Data_)
-	statistics["Kurtosis"]   =KURTOSIS(Data_)
-	statistics["Mode"]       =MODE(Data_)[0]	
+	statistics["Skewness"]	 =SKEWNESS(Data_)
+	statistics["Kurtosis"]	 =KURTOSIS(Data_)
+	statistics["Mode"]		 =MODE(Data_)[0]	
 	
 
 	Mass = vtk.vtkIntegrateAttributes()

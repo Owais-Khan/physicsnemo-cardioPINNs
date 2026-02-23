@@ -438,7 +438,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
 	torch.cuda.empty_cache()
 
 if __name__ == "__main__":
-	RadiusThreshold=80 #What percentange of lumen to sample along centerline. 90% = sample 90% of lumen 
+	RadiusThreshold=90 #What percentange of lumen to sample along centerline. 90% = sample 90% of lumen 
 	velocity_path = to_absolute_path("/home/khanmu11/Data/physicsnemo-cardioPINNs/Simvascular_physicsnemo_cardioPINNs/Data1_Stanford4DFlowMRI_50Frames/VelocityAlongCenterlineRadiusRatio0.%s/"%RadiusThreshold)
 	velocity_path_vtu = to_absolute_path("/home/khanmu11/Data/physicsnemo-cardioPINNs/Simvascular_physicsnemo_cardioPINNs/Data1_Stanford4DFlowMRI_50Frames/")
 
@@ -449,8 +449,8 @@ if __name__ == "__main__":
 	else: print ("Number of Velocity Files: %d"%len(velocity_files))
 	#for i in range(0,len(velocity_files)):
 	
-	VelocityFilePath=velocity_files[8]
+	VelocityFilePath=velocity_files[12]
 	print ("Processing: %s"%os.path.basename(VelocityFilePath))
-	VelocityFilePathVTU=velocity_files_vtu[8]
+	VelocityFilePathVTU=velocity_files_vtu[12]
 	
 	run()

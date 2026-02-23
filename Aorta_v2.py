@@ -61,9 +61,6 @@ def run(cfg: PhysicsNeMoConfig) -> None:
 	rho=1.06 # density in CGS units.
 	cgsFactor=0.1 #multiply mesh/data by this factor to convert to cgs. Keep 1 by default.
 
-	MaxSamples=10000 #maximum number of points to sample from velocity data
-
-
 	VelocityArrayName="Velocity" #Array name of the velocity in data files
 	VelocityFileName=os.path.splitext(os.path.basename(VelocityFilePath))[0]
 
@@ -182,7 +179,7 @@ def run(cfg: PhysicsNeMoConfig) -> None:
 			print ("%s Radius:	 %.05f"%(outlet_filename_,outlet_radius[i]))
 
 	#-------------------- Load and Normalize Velocity Data -----------------------------------
-	velData_invar, velData_outvar =CardioPINNsGetVelocityDataFromTextFile(VelocityFilePath,MeshCentroidOld,cgsFactor,MaxSamples)
+	velData_invar, velData_outvar =CardioPINNsGetVelocityDataFromTextFile(VelocityFilePath,MeshCentroidOld,cgsFactor)
 	NumberOfVelPoints=len(velData_invar["x"])
 	VelocityMean=torch.mean(torch.sqrt(torch.square(torch.tensor(velData_outvar["u"]))	+ torch.square(torch.tensor(velData_outvar["v"])) + torch.square(torch.tensor(velData_outvar["w"]))))
 	VelocityMedian=torch.quantile(torch.sqrt(torch.square(torch.tensor(velData_outvar["u"]))  + torch.square(torch.tensor(velData_outvar["v"])) + torch.square(torch.tensor(velData_outvar["w"]))),0.5)
@@ -438,19 +435,19 @@ def run(cfg: PhysicsNeMoConfig) -> None:
 	torch.cuda.empty_cache()
 
 if __name__ == "__main__":
-	RadiusThreshold=80 #What percentange of lumen to sample along centerline. 90% = sample 90% of lumen 
-	velocity_path = to_absolute_path("/home/khanmu11/Data/physicsnemo-cardioPINNs/Simvascular_physicsnemo_cardioPINNs/Data1_Stanford4DFlowMRI_50Frames/VelocityAlongCenterlineRadiusRatio0.%s/"%RadiusThreshold)
-	velocity_path_vtu = to_absolute_path("/home/khanmu11/Data/physicsnemo-cardioPINNs/Simvascular_physicsnemo_cardioPINNs/Data1_Stanford4DFlowMRI_50Frames/")
+    RadiusThreshold=10 #What percentange of lumen to sample along centerline. 90% = sample 90% of lumen 
+    velocity_path = to_absolute_path("/home/khanmu11/Data/physicsnemo-cardioPINNs/Simvascular_physicsnemo_cardioPINNs/Data1_Stanford4DFlowMRI_50Frames/VelocityAlongCenterlineRadiusRatio0.%s/"%RadiusThreshold)
+    velocity_path_vtu = to_absolute_path("/home/khanmu11/Data/physicsnemo-cardioPINNs/Simvascular_physicsnemo_cardioPINNs/Data1_Stanford4DFlowMRI_50Frames/")
 
 	#Read the Velocity Files available in the folder
-	velocity_files=glob(os.path.join(velocity_path,"*.dat"))
-	velocity_files_vtu=glob(os.path.join(velocity_path_vtu,"*.vtu"))
-	if len(velocity_files)==0: raise Exception("No velocity data found. Exiting...")
-	else: print ("Number of Velocity Files: %d"%len(velocity_files))
+    velocity_files=glob(os.path.join(velocity_path,"*.dat"))
+    velocity_files_vtu=glob(os.path.join(velocity_path_vtu,"*.vtu"))
+    if len(velocity_files)==0: raise Exception("No velocity data found. Exiting...")
+    else: print ("Number of Velocity Files: %d"%len(velocity_files))
 	#for i in range(0,len(velocity_files)):
+    
+    VelocityFilePath=velocity_files[8]
+    print ("Processing: %s"%os.path.basename(VelocityFilePath))
+    VelocityFilePathVTU=velocity_files_vtu[8]
 	
-	VelocityFilePath=velocity_files[8]
-	print ("Processing: %s"%os.path.basename(VelocityFilePath))
-	VelocityFilePathVTU=velocity_files_vtu[8]
-	
-	run()
+    run()

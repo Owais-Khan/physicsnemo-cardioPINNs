@@ -449,8 +449,8 @@ if __name__ == "__main__":
 	else: print ("Number of Velocity Files: %d"%len(velocity_files))
 	#for i in range(0,len(velocity_files)):
 	
-	VelocityFilePath=velocity_files[8]
+	VelocityFilePath=velocity_files[12]
 	print ("Processing: %s"%os.path.basename(VelocityFilePath))
-	VelocityFilePathVTU=velocity_files_vtu[8]
+	VelocityFilePathVTU=velocity_files_vtu[12]
 	
 	run()
